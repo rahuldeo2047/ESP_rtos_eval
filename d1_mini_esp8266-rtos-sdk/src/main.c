@@ -91,6 +91,22 @@ void task2(void *pvParameters)
     }
 }
 
+
+void task_wifi(void *pvParameters)
+{
+    //printf("Hello from task 2!\r\n");
+
+    xQueueHandle *queue = (xQueueHandle *)pvParameters;
+    while(1) {
+        uint32_t count;
+        if(xQueueReceive(*queue, &count, 1000)) {
+            printf("Got %u\n", count);
+        } else {
+            printf("No msg :(\n");
+        }
+    }
+}
+
 static xQueueHandle mainqueue;
 
 void user_init(void)
