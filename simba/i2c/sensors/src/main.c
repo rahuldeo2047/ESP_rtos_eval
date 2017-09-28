@@ -33,13 +33,24 @@
 
 #include "mpu6050_basic.h"
 
-
 int main()
 {
 
   struct mpu6050_basic_driver_t mpu6050basic_dev;
   struct mpu6050_basic_transport_i2c_t mpu6050basic_transport;
+
+  #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
   struct i2c_driver_t i2c;
+
+  #else
+
+  #define SCL_PIN &pin_d4_dev
+  #define SDA_PIN &pin_d5_dev
+
+  struct i2c_soft_driver_t i2c;
+
+  #endif
+
   struct sMPUDATA_t mpudata;
 
   int address;
@@ -48,20 +59,46 @@ int main()
 
   sys_start();
 
+  #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
+  std_printf(FSTR("Hardware I2C is being used.\r\n"
+                  "\r\n"));
   i2c_module_init();
+
+  #else
+  std_printf(FSTR("Software I2C is being used.\r\n"
+                  "\r\n"));
+  i2c_soft_module_init();
+
+  #endif
+
   mpu6050_basic_module_init();
 
   //i2c_init(&i2c, &i2c_0_dev, I2C_BAUDRATE_100KBPS, -1);
+  #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
+
   i2c_init(&i2c, &i2c_0_dev, I2C_BAUDRATE_400KBPS, -1);
   i2c_start(&i2c);
+
+  #else
+
+  i2c_soft_init(&i2c, SCL_PIN, SDA_PIN, 50000, 1000000, 1000);
+  i2c_soft_start(&i2c);
+
+  #endif
 
   std_printf(FSTR("Scanning the i2c bus for slaves...\r\n"
                   "\r\n"));
 
   number_of_slaves = 0;
 
-  for (address = 0; address < 128; address++) {
-      if (i2c_scan(&i2c, address) == 1) {
+  for (address = 0; address < 128; address++)
+  {
+      #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
+      if (i2c_scan(&i2c, address) == 1)
+      #else
+      if (i2c_soft_scan(&i2c, address) == 1)
+      #endif
+      {
           std_printf(FSTR("Found slave with address 0x%x.\r\n"), address);
           number_of_slaves++;
       }
@@ -70,8 +107,16 @@ int main()
   std_printf(FSTR("\r\n"
                   "Scan complete. Found %d slaves.\r\n"), number_of_slaves);
 
+  #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
 
-  if (i2c_scan(&i2c, MPU6050_BASIC_I2C_ADDRESS_0) == 1) {
+  if (i2c_scan(&i2c, MPU6050_BASIC_I2C_ADDRESS_0) == 1)
+
+  #else
+
+  if (i2c_soft_scan(&i2c, MPU6050_BASIC_I2C_ADDRESS_0) == 1)
+
+  #endif
+  {
     std_printf(FSTR("recheck Found slave with address 0x%x.\r\n"), MPU6050_BASIC_I2C_ADDRESS_0);
   }
 

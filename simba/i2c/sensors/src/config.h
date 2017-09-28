@@ -7,5 +7,6 @@
 #define CONFIG_EXTI                                           1
 
 #define CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK                   (1)
+#define CONFIG_MPU6050_BASIC_USE_HARD_I2C                     (-1)
 
 #endif

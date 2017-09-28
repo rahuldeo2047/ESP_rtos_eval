@@ -1,6 +1,6 @@
 
-static const uint8_t SDA = 4;
-static const uint8_t SCL = 5;
+static const uint8_t SDA = 4; D2
+static const uint8_t SCL = 5; D1
 
 static const uint8_t LED_BUILTIN = 2;
 static const uint8_t BUILTIN_LED = 2;

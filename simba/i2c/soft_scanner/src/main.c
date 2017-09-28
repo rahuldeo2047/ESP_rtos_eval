@@ -35,7 +35,7 @@
 
 struct i2c_soft_driver_t i2c;
 
-int main()
+int _main()
 {
     int address;
     int number_of_slaves;
