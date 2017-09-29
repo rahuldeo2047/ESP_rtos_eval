@@ -23,6 +23,9 @@
 #define DLOG(level, msg, ...)
 #endif //  #if defined(DEBUG_MPU6050_BASIC)
 
+#define DEEP_DEBUG 0
+#define deep_debug_log if(DEEP_DEBUG)std_printf
+
 
 struct mpu6050_basic_transport_protocol_t
 {
@@ -95,7 +98,7 @@ int mpu6050_basic_init(
 	self_p->config.bias.GyZ = 0;
 
 
-  std_printf(FSTR("\r\n"
+  deep_debug_log(FSTR("\r\n"
   "LINE: %d : \r\n"
   "self_p->config._internal._sampleRateDiv  %d\r\n"
   "self_p->config.config.filterLevel        %d\r\n"
@@ -122,7 +125,7 @@ static int transport_i2c_start(struct mpu6050_basic_driver_t *self_p)
 
 	transport_p = (struct mpu6050_basic_transport_i2c_t *)self_p->transport_p;
 
-  std_printf(FSTR("\r\n"
+  deep_debug_log(FSTR("\r\n"
                   "LINE: %d : transport_p->i2c_address 0x%02x.\r\n"), __LINE__, transport_p->i2c_address);
 
 	if (transport_p->i2c_address == MPU6050_BASIC_I2C_ADDRESS_AUTOMATIC)
@@ -156,7 +159,7 @@ static int transport_i2c_start(struct mpu6050_basic_driver_t *self_p)
     #else
     res = i2c_soft_scan(transport_p->i2c_p, transport_p->i2c_address);
     #endif
-    std_printf(FSTR("\r\n"
+    deep_debug_log(FSTR("\r\n"
                     "LINE: %d : i2c_scan %d.\r\n"), __LINE__, res);
 
 	}
@@ -168,7 +171,7 @@ static int transport_i2c_start(struct mpu6050_basic_driver_t *self_p)
 			transport_p->i2c_address
 		);
 		res = 0;
-    std_printf(FSTR("\r\n"
+    deep_debug_log(FSTR("\r\n"
                     "LINE: %d : i2c_scan return %d.\r\n"), __LINE__, res);
 	}
 	else if (res == 0)
@@ -217,7 +220,7 @@ static int transport_i2c_read(
   //i2c_stop(transport_p->i2c_p);
   //i2c_start(transport_p->i2c_p);
 
-  std_printf(FSTR("\r\n"
+  deep_debug_log(FSTR("\r\n"
                   "LINE: %d : i2c_write return %d.\r\n"), __LINE__, res);
 
 	if (res != sizeof(address))
@@ -229,7 +232,7 @@ static int transport_i2c_read(
 		return (-EIO);
 	}
 
-  std_printf(FSTR("\r\n"
+  deep_debug_log(FSTR("\r\n"
                   "LINE: %d : check return %d size %d.\r\n"), __LINE__, res, size);
 
     #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
@@ -243,8 +246,8 @@ static int transport_i2c_read(
 		size
 	);
 
-  std_printf(FSTR("\r\n"
-                  "LINE: %d : i2c_read return %d size %d.\r\n"), __LINE__, res, size);
+  deep_debug_log(FSTR("\r\n"
+                  "LINE: %d : i2c_read return %d size %d data 0x%02x.\r\n"), __LINE__, res, size, buf_p[0]);
 
 	if (res != size)
 	{
@@ -284,7 +287,7 @@ static int transport_i2c_write(
 		sizeof(buf)
 	);
 
-  std_printf(FSTR("\r\n"
+  deep_debug_log(FSTR("\r\n"
                     "LINE: %d res %d.\r\n"), __LINE__, res);
 
 
@@ -328,7 +331,7 @@ int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p)
 	uint8_t chip_id;
 
 
-  std_printf(FSTR("\r\n"
+  deep_debug_log(FSTR("\r\n"
                     "LINE: %d.\r\n"), __LINE__);
 
 
@@ -339,7 +342,7 @@ int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p)
 		return (res);
 	}
 
-  std_printf(FSTR("\r\n"
+  deep_debug_log(FSTR("\r\n"
                     "LINE: %d.\r\n"), __LINE__);
 
 	//Read chip id
@@ -363,7 +366,7 @@ int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p)
 	// Set Power mode
 	//
 
-  std_printf(FSTR("\r\n"
+  deep_debug_log(FSTR("\r\n"
                     "LINE: %d ID 0x%02x.\r\n"), __LINE__, chip_id);
 
 	res = self_p->transport_p->protocol_p->write(
@@ -498,7 +501,7 @@ int mpu6050_basic_read_fixed_point(
 		data_p->GyY = buf[10] << 8 | buf[11];
 		data_p->GyZ = buf[12] << 8 | buf[13];
 
-    std_printf(FSTR("\r\n"
+    deep_debug_log(FSTR("\r\n"
                       "LINE: %d Ax %d.\r\n"), __LINE__, data_p->AcX );
 	}
 
