@@ -5,6 +5,7 @@
 
 #include "kernel/time.h"
 #include "mpu6050_basic.h"
+//#include "Math3D.h"
 
 
 #define TEMP_SCALE  (1.0f / 340.0f)
@@ -59,7 +60,7 @@ int mpu6050_basic_init(
 )//uint16_t sampleRate, uint8_t filterLevel, uint8_t gyroRange, uint8_t accelRange)
 {
 
-  #if CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK > -1
+  #if (CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK > -1)
     log_object_init(&self_p->log, "mpu6050basic", CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK);
   #endif
 
@@ -381,10 +382,6 @@ int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p)
 		return (res);
 	}
 
-
-
-	// delay for 10 ms
-
   struct mpu6050_basic_setting settings[12] =
 	{
 		{ 25,  self_p->config._internal._sampleRateDiv , -1}, 	//  sample rate divider: sample rate = mstrClock / (1 +  divider)
@@ -400,22 +397,6 @@ int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p)
 		{ 107, 0b00000001			, -11},	//  no sleep and clock off gyro_X
 		{ 108, 0b00000000			, -12}   //  no goofball sleep mode
 	};
-
-	// uint8_t settings[11][3] =
-	// { 		// fill required settings
-	// 	{ 25,  self_p->config._internal._sampleRateDiv , "errmpu -01"}, 	//  sample rate divider: sample rate = mstrClock / (1 +  divider)
-	// 	{ 26,  self_p->config.config.filterLevel			, "errmpu -02"},  //  DLPF set.  (0 = 8kHz master clock else 1kHz master clock)
-	// 	{ 27,  self_p->config._internal._gFSR					, "errmpu -03"},  //  gyro full scale range
-	// 	{ 28,  self_p->config._internal._aFSR					, "errmpu -04"},  //  accel full scale range
-	// 	{ 31,  B00000000			, "errmpu -05"},	//  no motion detect
-	// 	{ 35,  B00000000			, "errmpu -06"},	//  no FIFO
-	// 	{ 36,  B00000000			, "errmpu -07"},	//  no mstr I2C
-	// 	{ 55,  B01110000			, "errmpu -08"},	//	configure interrupt  -- on when data ready, off on data read
-	// 	{ 56,  B00000001			, "errmpu -09"},	//	interrupt on
-	// 	{ 106, B00000000		  , "errmpu -10"},	//  no silly stuff
-	// 	{ 107, B00000001			, "errmpu -11"},	//  no sleep and clock off gyro_X
-	// 	{ 108, B00000000			, "errmpu -12"}   //  no goofball sleep mode
-	// };
 
 	for (int i = 0 ; i < 12 ; i++)
 	{
@@ -454,16 +435,6 @@ int mpu6050_basic_read(
 	int res;
 
 	res = mpu6050_basic_read_fixed_point(self_p, data_p);
-
-	// if (res == 0) {
-	//     if (temperature_p != NULL) {
-	//         *temperature_p = (temperature / 1000.0f);
-	//     }
-	//
-	//     if (pressure_p != NULL) {
-	//         *pressure_p = (pressure / 1000.0f);
-	//     }
-	// }
 
 	return (res);
 }
@@ -534,4 +505,41 @@ int mpu6050_basic_transport_i2c_init(
 	#else
 	return (-ENOSYS);
 	#endif
+}
+
+ // must be called every config.sampleRate duration uS
+ // If not being called this should msg for timeout warnings
+int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *YPR)
+{
+
+  static struct Quat AttitudeEstimateQuat;
+
+  static struct Vec3 correction_Body, correction_World;
+  static struct Vec3 Accel_Body, Accel_World;
+  static struct Vec3 GyroVec;
+
+  // Sensor is placed upside down approx
+  const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, -1.0f);
+  // vertical vector in the World frame
+
+  GyroVec  = Vector(data_p->GyX, data_p->GyY, data_p->GyZ);	// move gyro data to vector structure
+  Accel_Body = Vector(data_p->AcX, data_p->AcY, -data_p->AcZ);	// move accel data to vector structure
+  // Manipulated z as -z as sensor placement seemed inverted to me
+  // It seems there will be edge cases on border angles
+
+  Accel_World = RotateQV(AttitudeEstimateQuat, Accel_Body); // rotate accel from body frame to world frame
+
+  correction_World = CrossProdVV(Accel_World, VERTICAL); // cross product to determine error
+
+  correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
+
+  GyroVec = SumVV(GyroVec, correction_Body);  // add correction vector to gyro data
+
+  struct Quat incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
+
+  AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
+
+  *YPR = YawPitchRoll(AttitudeEstimateQuat);
+
+  return (0);
 }

@@ -5,6 +5,7 @@
 
 
 #include "simba.h"
+#include "Math3D.h" // Any 3D vector lib
 
 #define MPU6050_BASIC_I2C_ADDRESS_0                             (0x68)
 #define MPU6050_BASIC_I2C_ADDRESS_1                             (0x69)
@@ -15,20 +16,20 @@
 #define MPU6050_BASIC_REG_PWR_MGMT_1                            (0x6B)
 
 #define MPU6050_BASIC_REG_ACCEL_XOUT_H                          (0x3B)
-#define MPU6050_BASIC_REG_ACCEL_XOUT_H                          (0x3B)
-#define MPU6050_BASIC_REG_ACCEL_XOUT_L                          (0x3C)
-#define MPU6050_BASIC_REG_ACCEL_YOUT_H                          (0x3D)
-#define MPU6050_BASIC_REG_ACCEL_YOUT_L                          (0x3E)
-#define MPU6050_BASIC_REG_ACCEL_ZOUT_H                          (0x3F)
-#define MPU6050_BASIC_REG_ACCEL_ZOUT_L                          (0x40)
-#define MPU6050_BASIC_REG_TEMP_OUT_H                            (0x41)
-#define MPU6050_BASIC_REG_TEMP_OUT_L                            (0x42)
-#define MPU6050_BASIC_REG_GYRO_XOUT_H                           (0x43)
-#define MPU6050_BASIC_REG_GYRO_XOUT_L                           (0x44)
-#define MPU6050_BASIC_REG_GYRO_YOUT_H                           (0x45)
-#define MPU6050_BASIC_REG_GYRO_YOUT_L                           (0x46)
-#define MPU6050_BASIC_REG_GYRO_ZOUT_H                           (0x47)
-#define MPU6050_BASIC_REG_GYRO_ZOUT_L                           (0x48)
+// #define MPU6050_BASIC_REG_ACCEL_XOUT_H                          (0x3B)
+// #define MPU6050_BASIC_REG_ACCEL_XOUT_L                          (0x3C)
+// #define MPU6050_BASIC_REG_ACCEL_YOUT_H                          (0x3D)
+// #define MPU6050_BASIC_REG_ACCEL_YOUT_L                          (0x3E)
+// #define MPU6050_BASIC_REG_ACCEL_ZOUT_H                          (0x3F)
+// #define MPU6050_BASIC_REG_ACCEL_ZOUT_L                          (0x40)
+// #define MPU6050_BASIC_REG_TEMP_OUT_H                            (0x41)
+// #define MPU6050_BASIC_REG_TEMP_OUT_L                            (0x42)
+// #define MPU6050_BASIC_REG_GYRO_XOUT_H                           (0x43)
+// #define MPU6050_BASIC_REG_GYRO_XOUT_L                           (0x44)
+// #define MPU6050_BASIC_REG_GYRO_YOUT_H                           (0x45)
+// #define MPU6050_BASIC_REG_GYRO_YOUT_L                           (0x46)
+// #define MPU6050_BASIC_REG_GYRO_ZOUT_H                           (0x47)
+// #define MPU6050_BASIC_REG_GYRO_ZOUT_L                           (0x48)
 
 struct mpu6050_basic_setting
 {
@@ -36,25 +37,6 @@ struct mpu6050_basic_setting
     uint8_t data;
     int8_t errmpu;
 };
-
-struct mpu6050_basic_transport_protocol_t;
-
-struct mpu6050_basic_transport_t
-{
-    struct mpu6050_basic_transport_protocol_t *protocol_p;
-};
-
-struct mpu6050_basic_transport_i2c_t
-{
-    struct mpu6050_basic_transport_t base;
-    #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
-    struct i2c_driver_t *i2c_p;
-    #else
-    struct i2c_soft_driver_t *i2c_p;
-    #endif
-    int i2c_address;
-};
-
 
 struct sMPUDATA_t
 {
@@ -80,6 +62,24 @@ struct mpu6050_basic_config_initial
   uint8_t filterLevel;
   uint8_t gyroRange;
   uint8_t accelRange;
+};
+
+struct mpu6050_basic_transport_protocol_t;
+
+struct mpu6050_basic_transport_t
+{
+    struct mpu6050_basic_transport_protocol_t *protocol_p;
+};
+
+struct mpu6050_basic_transport_i2c_t
+{
+    struct mpu6050_basic_transport_t base;
+    #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
+    struct i2c_driver_t *i2c_p;
+    #else
+    struct i2c_soft_driver_t *i2c_p;
+    #endif
+    int i2c_address;
 };
 
 struct mpu6050_basic_config
@@ -120,5 +120,7 @@ int mpu6050_basic_read(
 	struct mpu6050_basic_driver_t *self_p,
 	struct sMPUDATA_t *data_p
 );
+
+int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *YPR); // must be called every config.sampleRate duration uS
 
 #endif // __DRIVERS_SENSORS_MPU6050_H__

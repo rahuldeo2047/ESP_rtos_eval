@@ -38,6 +38,7 @@ int main()
 
   struct mpu6050_basic_driver_t mpu6050basic_dev;
   struct mpu6050_basic_transport_i2c_t mpu6050basic_transport;
+  struct mpu6050_basic_config_initial mpu6050basic_config;
 
   #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
   struct i2c_driver_t i2c;
@@ -56,6 +57,13 @@ int main()
   int address;
   int number_of_slaves;
   int res;
+
+  mpu6050basic_config.accelRange    = 0;
+  mpu6050basic_config.filterLevel   = 6;
+  mpu6050basic_config.gyroRange     = 3;
+  mpu6050basic_config.sampleRate    = 400;
+
+  mpu6050basic_dev.config.config = mpu6050basic_config;
 
   sys_start();
 
