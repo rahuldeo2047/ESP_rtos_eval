@@ -53,6 +53,7 @@ int main()
   #endif
 
   struct sMPUDATA_t mpudata;
+  struct Vec3 YPR;
 
   int address;
   int number_of_slaves;
@@ -142,7 +143,7 @@ int main()
     "mpu initialization status: %d.\r\n"), res);
 
 
-    res = mpu6050_basic_start(&mpu6050basic_dev);
+    res = mpu6050_basic_start(&mpu6050basic_dev, &mpudata);
 
     if (res != 0) {
       std_printf(OSTR("Failed to start the device.\r\n"));
@@ -151,33 +152,51 @@ int main()
 
     while (1)
     {
-      thrd_sleep(1);
+      thrd_sleep_ms(100);
 
       /* Read temperature and pressure from the BMP280. */
       res = mpu6050_basic_read(&mpu6050basic_dev, &mpudata);
 
+
       if (res != 0)
       {
         std_printf(OSTR("Read failed with %d.\r\n"),
-        res
-      );
-      continue;
+          res
+        );
+        continue;
+      }
+      else
+      {
+        res = mpu6050_motion_calc(&mpu6050basic_dev, &mpudata, &YPR);
+
+
+        if (res != 0)
+        {
+          std_printf(OSTR("Read failed with %d.\r\n"),
+            res
+          );
+          continue;
+        }
+        else
+        {
+
+          std_printf(OSTR("Read data A[%d %d %d], Tmp:%d, G[%d %d %d], YPR[%f %f %f] \r\n"),
+            mpudata.AcX,
+            mpudata.AcY,
+            mpudata.AcZ,
+            mpudata.Tmp,
+            mpudata.GyX,
+            mpudata.GyY,
+            mpudata.GyZ,
+            YPR.x,
+            YPR.y,
+            YPR.z
+          );
+        }
+
+      }
+
     }
-    else
-    {
-      std_printf(OSTR("Read data Ax:%d, %d, %d, Tmp:%d, Gx%d, %d, %d.\r\n"),
-      mpudata.AcX,
-      mpudata.AcY,
-      mpudata.AcZ,
-      mpudata.Tmp,
-      mpudata.GyX,
-      mpudata.GyY,
-      mpudata.GyZ
-    );
 
-  }
-
-}
-
-return (0);
+    return (0);
 }

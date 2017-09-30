@@ -80,9 +80,16 @@ int mpu6050_basic_init(
 		self_p->config._internal._GyroClk = 8000;
 	}
 
-	self_p->config._internal._sampleRateDiv = (uint8_t)(((float)self_p->config._internal._GyroClk / (float)self_p->config.config.sampleRate) - 1);
-	self_p->config._internal._samplePeriod = (uint8_t)((float)(self_p->config._internal._sampleRateDiv + 1) * 1000000UL) / (float)self_p->config._internal._GyroClk; // time between samples (us)
-	self_p->config._internal._gFSR = self_p->config.config.gyroRange  << 3;	// bitshift to correct position for settings register
+  self_p->config._internal._sampleRateDiv
+  = (uint8_t)((((float)(self_p->config._internal._GyroClk) / (float)(self_p->config.config.sampleRate)) - 1));
+
+  self_p->config._internal._samplePeriod
+  = (uint8_t)((((float)(self_p->config._internal._sampleRateDiv) + 1) * 1000000UL) / (float)(self_p->config._internal._GyroClk)); // time between samples (us)
+
+	//self_p->config._internal._sampleRateDiv = (uint8_t)(((float)self_p->config._internal._GyroClk / (float)self_p->config.config.sampleRate) - 1);
+	//self_p->config._internal._samplePeriod = (uint8_t)((float)(self_p->config._internal._sampleRateDiv + 1) * 1000000UL) / (float)self_p->config._internal._GyroClk; // time between samples (us)
+
+  self_p->config._internal._gFSR = self_p->config.config.gyroRange  << 3;	// bitshift to correct position for settings register
 	self_p->config._internal._aFSR = self_p->config.config.accelRange << 3;
 
 	self_p->config._internal.accelToG  = 1.0f / (ACCEL_BASE * (float)(1 << (3 - self_p->config.config.accelRange)));		// constant to convert from raw int to float G
@@ -105,12 +112,14 @@ int mpu6050_basic_init(
   "self_p->config.config.filterLevel        %d\r\n"
   "self_p->config._internal._gFSR           %d\r\n"
   "self_p->config._internal._aFSR           %d\r\n"
+  "self_p->config._internal._samplePeriod   %d\r\n"
 )
   , __LINE__
   , self_p->config._internal._sampleRateDiv
   , self_p->config.config.filterLevel
   , self_p->config._internal._gFSR
   , self_p->config._internal._aFSR
+  , self_p->config._internal._samplePeriod
 );
 
 
@@ -322,7 +331,7 @@ int mpu6050_basic_module_init()
 	return (0);
 }
 
-int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p)
+int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p)
 {
 	ASSERTN(self_p != NULL, EINVAL);
 
@@ -414,6 +423,14 @@ int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p)
 		}
 	}
 
+  res = mpu6050_basic_motion_agzero(self_p, data_p);
+
+  if (res != 0)
+  {
+    DLOG(WARNING, "Failed: to set biasing %d.\r\n", res);
+    return (res);
+  }
+
 	return (res);
 
 }
@@ -464,13 +481,13 @@ int mpu6050_basic_read_fixed_point(
 		//data_p->timestamp = time_micros();//uptime_p.seconds;
 		//data_p->timestamp = uptime_p.nanoseconds;
 
-		data_p->AcX = buf[0] << 8 | buf[1];
-		data_p->AcY = buf[2] << 8 | buf[3];
-		data_p->AcZ = buf[4] << 8 | buf[5];
-		data_p->Tmp = buf[6] << 8 | buf[7];
-		data_p->GyX = buf[8] << 8 | buf[1];
-		data_p->GyY = buf[10] << 8 | buf[11];
-		data_p->GyZ = buf[12] << 8 | buf[13];
+		data_p->AcX = (buf[0] << 8 | buf[1]  ) - self_p->config.bias.AcX;
+		data_p->AcY = (buf[2] << 8 | buf[3]  ) - self_p->config.bias.AcY;
+		data_p->AcZ = (buf[4] << 8 | buf[5]  ) - self_p->config.bias.AcZ;
+		data_p->Tmp = (buf[6] << 8 | buf[7]  );
+		data_p->GyX = (buf[8] << 8 | buf[1]  ) - self_p->config.bias.GyX;
+		data_p->GyY = (buf[10] << 8 | buf[11]) - self_p->config.bias.GyY;
+		data_p->GyZ = (buf[12] << 8 | buf[13]) - self_p->config.bias.GyZ;
 
     deep_debug_log(FSTR("\r\n"
                       "LINE: %d Ax %d.\r\n"), __LINE__, data_p->AcX );
@@ -519,27 +536,125 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
   static struct Vec3 GyroVec;
 
   // Sensor is placed upside down approx
-  const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, -1.0f);
+  const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, 1.0f);
   // vertical vector in the World frame
+
+  //std_printf(OSTR("Calc Debug: %d: (%d, %d, %d), (%d, %d, %d) "), __LINE__, data_p->AcX, data_p->AcY, -data_p->AcZ, data_p->GyX, data_p->GyY, data_p->GyZ);
 
   GyroVec  = Vector(data_p->GyX, data_p->GyY, data_p->GyZ);	// move gyro data to vector structure
   Accel_Body = Vector(data_p->AcX, data_p->AcY, -data_p->AcZ);	// move accel data to vector structure
   // Manipulated z as -z as sensor placement seemed inverted to me
   // It seems there will be edge cases on border angles
 
+  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
+  // , GyroVec.x, GyroVec.y, GyroVec.z
+  // , Accel_Body.x, Accel_Body.y, Accel_Body.z);
+
+
   Accel_World = RotateQV(AttitudeEstimateQuat, Accel_Body); // rotate accel from body frame to world frame
+
+  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f), (%f, %f, %f) "), __LINE__
+  // , AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w
+  // , Accel_World.x, Accel_World.y, Accel_World.z);
 
   correction_World = CrossProdVV(Accel_World, VERTICAL); // cross product to determine error
 
+  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
+  // , correction_World.x, correction_World.y, correction_World.z
+  // , Accel_World.x, Accel_World.y, Accel_World.z);
+
   correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
+
+  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
+  // , correction_World.x, correction_World.y, correction_World.z
+  // , correction_Body.x, correction_Body.y, correction_Body.z);
 
   GyroVec = SumVV(GyroVec, correction_Body);  // add correction vector to gyro data
 
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f) "), __LINE__
+  //, correction_Body.x, correction_Body.y, correction_Body.z);
+
   struct Quat incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
 
+   std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
+   , incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
+
   AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
+
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
+  //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
 
   *YPR = YawPitchRoll(AttitudeEstimateQuat);
 
   return (0);
+}
+
+int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p)	// Measure and store accel and gyro bias offsets
+{
+
+  int res;
+	self_p->config.bias.AcX = 0;
+	self_p->config.bias.AcY = 0;
+	self_p->config.bias.AcZ = 0;
+  self_p->config.bias.GyX = 0;
+	self_p->config.bias.GyY = 0;
+	self_p->config.bias.GyZ = 0;
+
+	float sampleCount = 0;
+
+  float sampleTempAX = 0;
+	float sampleTempAY = 0;
+	float sampleTempAZ = 0;
+
+  float sampleTempGX = 0;
+	float sampleTempGY = 0;
+	float sampleTempGZ = 0;
+
+	while(sampleCount<1000)
+  {
+
+    res = mpu6050_basic_read_fixed_point(self_p, data_p);
+
+    if (res != 0)
+    {
+      DLOG(WARNING, "Failed: to read sensor while biasing %d.\r\n", res);
+      return (res);
+    }
+
+		sampleTempAX -= data_p->AcX;
+		sampleTempAY -= data_p->AcY;
+		sampleTempAZ -= data_p->AcZ;
+
+    sampleTempGX -= data_p->GyX;
+		sampleTempGY -= data_p->GyY;
+		sampleTempGZ -= data_p->GyZ;
+
+		sampleCount += 1.0;
+
+		thrd_sleep_us(self_p->config._internal._samplePeriod);
+	}
+
+  if(sampleTempAX > (.75f * sampleCount)){sampleTempAX -= sampleCount;}
+  if(sampleTempAY > (.75f * sampleCount)){sampleTempAY -= sampleCount;}
+  if(sampleTempAZ > (.75f * sampleCount)){sampleTempAZ -= sampleCount;}
+
+  if(sampleTempAX < (-.75f * sampleCount)){sampleTempAX += sampleCount;}
+  if(sampleTempAY < (-.75f * sampleCount)){sampleTempAY += sampleCount;}
+  if(sampleTempAZ < (-.75f * sampleCount)){sampleTempAZ += sampleCount;}
+
+	self_p->config.bias.AcX = (uint16_t)(sampleTempAX / sampleCount); // average
+	self_p->config.bias.AcY = (uint16_t)(sampleTempAY / sampleCount);
+	self_p->config.bias.AcZ = (uint16_t)(sampleTempAZ / sampleCount);
+
+  self_p->config.bias.GyX = (uint16_t)(sampleTempGX / sampleCount); // average
+	self_p->config.bias.GyY = (uint16_t)(sampleTempGY / sampleCount);
+	self_p->config.bias.GyZ = (uint16_t)(sampleTempGZ / sampleCount);
+
+  return 0;
+
+}
+
+float temp_C(uint16_t tempRaw)	// return sensor temperature
+{
+	return((float)(tempRaw) * TEMP_SCALE + TEMP_OFFSET);
 }

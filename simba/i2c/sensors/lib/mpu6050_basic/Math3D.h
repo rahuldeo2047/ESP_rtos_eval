@@ -90,6 +90,10 @@ struct Quat
     float z;// = 0.0f;
 };
 
+//#define DEFAULT_QUAT {.w = 1.0f,}// .x = 0.0f, .y = 0.0f, .z = 0.0f}
+
+//typedef struct Quat Quat ;
+
 struct Vec3
 {
     float x;// = 0.0f;

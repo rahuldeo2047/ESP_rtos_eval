@@ -64,6 +64,11 @@ struct mpu6050_basic_config_initial
   uint8_t accelRange;
 };
 
+struct mpu6050_basic_motion
+{
+  struct Quat AttitudeEstimateQuat;
+};
+
 struct mpu6050_basic_transport_protocol_t;
 
 struct mpu6050_basic_transport_t
@@ -93,6 +98,7 @@ struct mpu6050_basic_driver_t
 {
     struct mpu6050_basic_transport_t *transport_p;
     struct mpu6050_basic_config config;
+    struct mpu6050_basic_motion motion;
 
 #if CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK > -1
     struct log_object_t log;
@@ -114,13 +120,14 @@ int mpu6050_basic_module_init();
 int mpu6050_basic_init(struct mpu6050_basic_driver_t *self_p,
                 struct mpu6050_basic_transport_t *transport_p);
 
-int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p);
+int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p);
 
 int mpu6050_basic_read(
 	struct mpu6050_basic_driver_t *self_p,
 	struct sMPUDATA_t *data_p
 );
 
+int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p);
 int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *YPR); // must be called every config.sampleRate duration uS
 
 #endif // __DRIVERS_SENSORS_MPU6050_H__
