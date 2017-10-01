@@ -304,10 +304,6 @@ inline struct Vec3 NormalizeV(const struct Vec3 a)
 
 inline struct Vec3 NormalizeFastV(const struct Vec3 a)
 {
-    if((a.x == a.y) && (a.y == a.z))
-    {
-      //return {};
-    }
     return MulVS(a, InvSqrtFast(a.x*a.x + a.y*a.y + a.z*a.z));
 }
 
@@ -472,23 +468,23 @@ inline float atan2fast( float y, float x )
         if ( y == 0.0f ) return 0.0f;
         return -1.5707963f;
     }
-    float atan;
+    float atanf;
     float z = y/x;
     if ( fabs( z ) < 1.0f )
     {
-        atan = z/(1.0f + 0.28f*z*z);
+        atanf = z/(1.0f + 0.28f*z*z);
         if ( x < 0.0f )
         {
-            if ( y < 0.0f ) return atan - 3.14159265f;
-            return atan + 3.14159265f;
+            if ( y < 0.0f ) return atanf - 3.14159265f;
+            return atanf + 3.14159265f;
         }
     }
     else
     {
-        atan = 1.5707963f - z/(z*z + 0.28f);
-        if ( y < 0.0f ) return atan - 3.14159265f;
+        atanf = 1.5707963f - z/(z*z + 0.28f);
+        if ( y < 0.0f ) return atanf - 3.14159265f;
     }
-    return atan;
+    return atanf;
 }
 
 ////// YAW -> PITCH -> ROLL = YPR -- Rotation Order
@@ -510,10 +506,13 @@ inline float YPR_Roll(const struct Quat q)
 inline struct Vec3 YawPitchRoll(const struct Quat q) // Tait-Bryan Angles - 440us
 {
     struct Vec3 ypr;
-
+    std_printf(OSTR("YPR: %d \r\n"),__LINE__ );
     ypr.z = YPR_Yaw(q);        // YAW
+    std_printf(OSTR("Y: %f \r\n"), __LINE__, ypr.z );
     ypr.y = YPR_Pitch(q);    // PITCH
+    std_printf(OSTR("P: %f \r\n"), __LINE__, ypr.y );
     ypr.x = YPR_Roll(q);    // ROLL
+    std_printf(OSTR("R: %f \r\n"), __LINE__, ypr.x );
 
     return ypr;
 }

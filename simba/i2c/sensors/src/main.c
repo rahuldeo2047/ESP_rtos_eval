@@ -150,9 +150,11 @@ int main()
       return (res);
     }
 
+    int cnt = 0;
     while (1)
     {
-      thrd_sleep_ms(100);
+      cnt++;
+      thrd_sleep_us(mpu6050basic_dev.config._internal._samplePeriod);
 
       /* Read temperature and pressure from the BMP280. */
       res = mpu6050_basic_read(&mpu6050basic_dev, &mpudata);
@@ -180,7 +182,9 @@ int main()
         else
         {
 
-          std_printf(OSTR("Read data A[%d %d %d], Tmp:%d, G[%d %d %d], YPR[%f %f %f] \r\n"),
+
+          if(0==(cnt%150))
+          std_printf(OSTR("Read data A[%f %f %f], Tmp:%f, G[%f %f %f], YPR[%f %f %f] \r\n"),
             mpudata.AcX,
             mpudata.AcY,
             mpudata.AcZ,

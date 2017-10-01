@@ -42,7 +42,8 @@ struct sMPUDATA_t
 {
 
   uint32_t timestamp;
-  int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+  /*int16_t*/
+  float AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 
 };
 

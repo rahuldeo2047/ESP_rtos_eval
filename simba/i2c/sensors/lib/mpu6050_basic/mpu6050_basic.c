@@ -14,8 +14,8 @@
 #define ACCEL_BASE	2048.0f		// LSB per g   @ +/- 16g
 #define GYRO_BASE		16.375f		// LSB per dps @ +/- 2000 deg/s
 
-#define DEG_TO_RAD	(3.141592654f / 180.0f)
-
+#define DEG_TO_RAD ((3.141592654f / 180.0f))
+#define RAD_TO_DEG ((180.0f / 3.141592654f))
 
 #if (CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK > -1)
 #define DLOG(level, msg, ...)                                       \
@@ -49,10 +49,12 @@ struct mpu6050_basic_transport_protocol_t
 	);
 };
 
-int mpu6050_basic_read_fixed_point(
+int mpu6050_basic_read_mpu(
 	struct mpu6050_basic_driver_t *self_p,
 	struct sMPUDATA_t *data_p
 );
+
+float temp_C(uint16_t tempRaw);
 
 int mpu6050_basic_init(
 	struct mpu6050_basic_driver_t *self_p,
@@ -84,7 +86,7 @@ int mpu6050_basic_init(
   = (uint8_t)((((float)(self_p->config._internal._GyroClk) / (float)(self_p->config.config.sampleRate)) - 1));
 
   self_p->config._internal._samplePeriod
-  = (uint8_t)((((float)(self_p->config._internal._sampleRateDiv) + 1) * 1000000UL) / (float)(self_p->config._internal._GyroClk)); // time between samples (us)
+  = (uint32_t)((((float)(self_p->config._internal._sampleRateDiv) + 1) * 1000000UL) / (float)(self_p->config._internal._GyroClk)); // time between samples (us)
 
 	//self_p->config._internal._sampleRateDiv = (uint8_t)(((float)self_p->config._internal._GyroClk / (float)self_p->config.config.sampleRate) - 1);
 	//self_p->config._internal._samplePeriod = (uint8_t)((float)(self_p->config._internal._sampleRateDiv + 1) * 1000000UL) / (float)self_p->config._internal._GyroClk; // time between samples (us)
@@ -106,13 +108,16 @@ int mpu6050_basic_init(
 	self_p->config.bias.GyZ = 0;
 
 
-  deep_debug_log(FSTR("\r\n"
+  std_printf(FSTR("\r\n"
   "LINE: %d : \r\n"
   "self_p->config._internal._sampleRateDiv  %d\r\n"
   "self_p->config.config.filterLevel        %d\r\n"
   "self_p->config._internal._gFSR           %d\r\n"
   "self_p->config._internal._aFSR           %d\r\n"
   "self_p->config._internal._samplePeriod   %d\r\n"
+  "self_p->config._internal.accelToG        %f\r\n"
+  "self_p->config._internal.gyroToRad       %f\r\n"
+
 )
   , __LINE__
   , self_p->config._internal._sampleRateDiv
@@ -120,6 +125,8 @@ int mpu6050_basic_init(
   , self_p->config._internal._gFSR
   , self_p->config._internal._aFSR
   , self_p->config._internal._samplePeriod
+  , self_p->config._internal.accelToG
+  , self_p->config._internal.gyroToRad
 );
 
 
@@ -451,12 +458,14 @@ int mpu6050_basic_read(
 
 	int res;
 
-	res = mpu6050_basic_read_fixed_point(self_p, data_p);
+	res = mpu6050_basic_read_mpu(self_p, data_p);
+
+
 
 	return (res);
 }
 
-int mpu6050_basic_read_fixed_point(
+int mpu6050_basic_read_mpu(
 	struct mpu6050_basic_driver_t *self_p,
 	struct sMPUDATA_t *data_p
 )
@@ -481,13 +490,13 @@ int mpu6050_basic_read_fixed_point(
 		//data_p->timestamp = time_micros();//uptime_p.seconds;
 		//data_p->timestamp = uptime_p.nanoseconds;
 
-		data_p->AcX = (buf[0] << 8 | buf[1]  ) - self_p->config.bias.AcX;
-		data_p->AcY = (buf[2] << 8 | buf[3]  ) - self_p->config.bias.AcY;
-		data_p->AcZ = (buf[4] << 8 | buf[5]  ) - self_p->config.bias.AcZ;
-		data_p->Tmp = (buf[6] << 8 | buf[7]  );
-		data_p->GyX = (buf[8] << 8 | buf[1]  ) - self_p->config.bias.GyX;
-		data_p->GyY = (buf[10] << 8 | buf[11]) - self_p->config.bias.GyY;
-		data_p->GyZ = (buf[12] << 8 | buf[13]) - self_p->config.bias.GyZ;
+		data_p->AcX = ( buf[0] << 8 | buf[1] ) * self_p->config._internal.accelToG + self_p->config.bias.AcX;
+		data_p->AcY = ( buf[2] << 8 | buf[3] ) * self_p->config._internal.accelToG + self_p->config.bias.AcY;
+		data_p->AcZ = ( buf[4] << 8 | buf[5] ) * self_p->config._internal.accelToG + self_p->config.bias.AcZ;
+		data_p->Tmp = temp_C( buf[6] << 8 | buf[7] );
+		data_p->GyX = ( buf[8] << 8 | buf[9] ) * self_p->config._internal.gyroToRad + self_p->config.bias.GyX;
+		data_p->GyY = (buf[10] << 8 | buf[11]) * self_p->config._internal.gyroToRad + self_p->config.bias.GyY;
+		data_p->GyZ = (buf[12] << 8 | buf[13]) * self_p->config._internal.gyroToRad + self_p->config.bias.GyZ;
 
     deep_debug_log(FSTR("\r\n"
                       "LINE: %d Ax %d.\r\n"), __LINE__, data_p->AcX );
@@ -526,10 +535,10 @@ int mpu6050_basic_transport_i2c_init(
 
  // must be called every config.sampleRate duration uS
  // If not being called this should msg for timeout warnings
-int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *YPR)
+int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *ypr_p)
 {
 
-  static struct Quat AttitudeEstimateQuat;
+  static struct Quat AttitudeEstimateQuat = {1.0f, 0.0f, 0.0f, 0.0f};
 
   static struct Vec3 correction_Body, correction_World;
   static struct Vec3 Accel_Body, Accel_World;
@@ -539,16 +548,23 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
   const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, 1.0f);
   // vertical vector in the World frame
 
+  //std_printf(OSTR("\r\n\r\n"));
   //std_printf(OSTR("Calc Debug: %d: (%d, %d, %d), (%d, %d, %d) "), __LINE__, data_p->AcX, data_p->AcY, -data_p->AcZ, data_p->GyX, data_p->GyY, data_p->GyZ);
 
-  GyroVec  = Vector(data_p->GyX, data_p->GyY, data_p->GyZ);	// move gyro data to vector structure
-  Accel_Body = Vector(data_p->AcX, data_p->AcY, -data_p->AcZ);	// move accel data to vector structure
+  GyroVec  = Vector((float)data_p->GyX, (float)data_p->GyY, (float)data_p->GyZ);	// move gyro data to vector structure
+  Accel_Body = Vector((float)data_p->AcX, (float)data_p->AcY, (float)-data_p->AcZ);	// move accel data to vector structure
   // Manipulated z as -z as sensor placement seemed inverted to me
   // It seems there will be edge cases on border angles
 
-  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
-  // , GyroVec.x, GyroVec.y, GyroVec.z
-  // , Accel_Body.x, Accel_Body.y, Accel_Body.z);
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
+  //, GyroVec.x, GyroVec.y, GyroVec.z
+  //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
+
+  //GyroVec = NormalizeV(GyroVec);
+  //Accel_Body = NormalizeV(Accel_Body);
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
+  //, GyroVec.x, GyroVec.y, GyroVec.z
+  //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
 
 
   Accel_World = RotateQV(AttitudeEstimateQuat, Accel_Body); // rotate accel from body frame to world frame
@@ -576,15 +592,22 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
 
   struct Quat incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
 
-   std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
-   , incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
+  incrementalRotation = NormalizeFastQ(incrementalRotation);
+
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
+  //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
 
   AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
 
+  AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
   //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
 
-  *YPR = YawPitchRoll(AttitudeEstimateQuat);
+  *ypr_p = YawPitchRoll(AttitudeEstimateQuat);
+
+  ypr_p->x = RAD_TO_DEG*(ypr_p->x);
+  ypr_p->y = RAD_TO_DEG*(ypr_p->y);
+  ypr_p->z = RAD_TO_DEG*(ypr_p->z);
 
   return (0);
 }
@@ -613,7 +636,7 @@ int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sM
 	while(sampleCount<1000)
   {
 
-    res = mpu6050_basic_read_fixed_point(self_p, data_p);
+    res = mpu6050_basic_read_mpu(self_p, data_p);
 
     if (res != 0)
     {
@@ -642,13 +665,13 @@ int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sM
   if(sampleTempAY < (-.75f * sampleCount)){sampleTempAY += sampleCount;}
   if(sampleTempAZ < (-.75f * sampleCount)){sampleTempAZ += sampleCount;}
 
-	self_p->config.bias.AcX = (uint16_t)(sampleTempAX / sampleCount); // average
-	self_p->config.bias.AcY = (uint16_t)(sampleTempAY / sampleCount);
-	self_p->config.bias.AcZ = (uint16_t)(sampleTempAZ / sampleCount);
+	self_p->config.bias.AcX = (sampleTempAX / sampleCount); // average
+	self_p->config.bias.AcY = (sampleTempAY / sampleCount);
+	self_p->config.bias.AcZ = (sampleTempAZ / sampleCount);
 
-  self_p->config.bias.GyX = (uint16_t)(sampleTempGX / sampleCount); // average
-	self_p->config.bias.GyY = (uint16_t)(sampleTempGY / sampleCount);
-	self_p->config.bias.GyZ = (uint16_t)(sampleTempGZ / sampleCount);
+  self_p->config.bias.GyX = (sampleTempGX / sampleCount); // average
+	self_p->config.bias.GyY = (sampleTempGY / sampleCount);
+	self_p->config.bias.GyZ = (sampleTempGZ / sampleCount);
 
   return 0;
 
