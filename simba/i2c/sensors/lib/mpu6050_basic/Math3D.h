@@ -506,13 +506,13 @@ inline float YPR_Roll(const struct Quat q)
 inline struct Vec3 YawPitchRoll(const struct Quat q) // Tait-Bryan Angles - 440us
 {
     struct Vec3 ypr;
-    std_printf(OSTR("YPR: %d \r\n"),__LINE__ );
+    //std_printf(OSTR("YPR: %d \r\n"),__LINE__ );
     ypr.z = YPR_Yaw(q);        // YAW
-    std_printf(OSTR("Y: %f \r\n"), __LINE__, ypr.z );
+    //std_printf(OSTR("Y: %f \r\n"), __LINE__, ypr.z );
     ypr.y = YPR_Pitch(q);    // PITCH
-    std_printf(OSTR("P: %f \r\n"), __LINE__, ypr.y );
+    //std_printf(OSTR("P: %f \r\n"), __LINE__, ypr.y );
     ypr.x = YPR_Roll(q);    // ROLL
-    std_printf(OSTR("R: %f \r\n"), __LINE__, ypr.x );
+    //std_printf(OSTR("R: %f \r\n"), __LINE__, ypr.x );
 
     return ypr;
 }

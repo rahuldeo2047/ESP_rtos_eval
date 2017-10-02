@@ -5,8 +5,8 @@
 
 
 #include "simba.h"
-//#include "Math3D.h" // Any 3D vector lib
-#include "MadgwickAHRS.h"
+#include "Math3D.h" // Any 3D vector lib
+//#include "MadgwickAHRS.h"
 
 #define MPU6050_BASIC_I2C_ADDRESS_0                             (0x68)
 #define MPU6050_BASIC_I2C_ADDRESS_1                             (0x69)

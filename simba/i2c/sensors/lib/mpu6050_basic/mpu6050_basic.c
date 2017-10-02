@@ -563,90 +563,100 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
 {
 
   //static Madgwick Madgwick;
-  struct Quat AttitudeEstimateQuat;
+  //struct Quat AttitudeEstimateQuat;
 
-  MadgwickAHRSupdateIMU(&AttitudeEstimateQuat
-    , ((float)data_p->GyX)*self_p->config._internal.gyroToRad, ((float)data_p->GyY)*self_p->config._internal.gyroToRad, ((float)data_p->GyZ)*self_p->config._internal.gyroToRad
-    , ((float)data_p->AcX)*self_p->config._internal.accelToG, ((float)data_p->AcY)*self_p->config._internal.accelToG, ((float)-data_p->AcZ)*self_p->config._internal.accelToG);
+  // MadgwickAHRSupdateIMU(&AttitudeEstimateQuat
+  //  , ((float)data_p->GyX)*self_p->config._internal.gyroToRad, ((float)data_p->GyY)*self_p->config._internal.gyroToRad, ((float)data_p->GyZ)*self_p->config._internal.gyroToRad
+  //   , ((float)data_p->AcX)*self_p->config._internal.accelToG, ((float)data_p->AcY)*self_p->config._internal.accelToG, ((float)-data_p->AcZ)*self_p->config._internal.accelToG);
 
-  toEulerAngle(&AttitudeEstimateQuat, ypr_p);
+  //toEulerAngle(&AttitudeEstimateQuat, ypr_p);
+
+  //ypr_p->x = RAD_TO_DEG*(ypr_p->x);
+  //ypr_p->y = RAD_TO_DEG*(ypr_p->y);
+  //ypr_p->z = RAD_TO_DEG*(ypr_p->z);
+
+  //return (0);
+
+  static struct Quat AttitudeEstimateQuat = {1.0f, 0.0f, 0.0f, 0.0f};
+
+  static struct Vec3 correction_Body, correction_World;
+  static struct Vec3 Accel_Body, Accel_World;
+  static struct Vec3 GyroVec;
+
+  // Sensor is placed upside down approx
+  const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, 1.0f);
+  // vertical vector in the World frame
+
+  //std_printf(OSTR("\r\n\r\n"));
+  //std_printf(OSTR("Calc Debug: %d: (%d, %d, %d), (%d, %d, %d) "), __LINE__, data_p->AcX, data_p->AcY, -data_p->AcZ, data_p->GyX, data_p->GyY, data_p->GyZ);
+  GyroVec    = Vector(
+                     ((float)data_p->GyX)*self_p->config._internal.gyroToRad,
+                     ((float)data_p->GyY)*self_p->config._internal.gyroToRad,
+                     ((float)data_p->GyZ)*self_p->config._internal.gyroToRad
+               );
+  Accel_Body = Vector(
+                     ((float)data_p->AcX)*self_p->config._internal.accelToG,
+                     ((float)data_p->AcY)*self_p->config._internal.accelToG,
+                     ((float)-data_p->AcZ)*self_p->config._internal.accelToG
+              );
+
+  //GyroVec  = Vector((float)data_p->GyX, (float)data_p->GyY, (float)data_p->GyZ);	// move gyro data to vector structure
+  //Accel_Body = Vector((float)data_p->AcX, (float)data_p->AcY, (float)-data_p->AcZ);	// move accel data to vector structure
+  // Manipulated z as -z as sensor placement seemed inverted to me
+  // It seems there will be edge cases on border angles
+
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
+  //, GyroVec.x, GyroVec.y, GyroVec.z
+  //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
+
+  //GyroVec = NormalizeV(GyroVec);
+  //Accel_Body = NormalizeV(Accel_Body);
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
+  //, GyroVec.x, GyroVec.y, GyroVec.z
+  //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
+
+
+  Accel_World = RotateQV(AttitudeEstimateQuat, Accel_Body); // rotate accel from body frame to world frame
+
+  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f), (%f, %f, %f) "), __LINE__
+  // , AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w
+  // , Accel_World.x, Accel_World.y, Accel_World.z);
+
+  correction_World = CrossProdVV(Accel_World, VERTICAL); // cross product to determine error
+
+  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
+  // , correction_World.x, correction_World.y, correction_World.z
+  // , Accel_World.x, Accel_World.y, Accel_World.z);
+
+  correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
+
+  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
+  // , correction_World.x, correction_World.y, correction_World.z
+  // , correction_Body.x, correction_Body.y, correction_Body.z);
+
+  GyroVec = SumVV(GyroVec, correction_Body);  // add correction vector to gyro data
+
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f) "), __LINE__
+  //, correction_Body.x, correction_Body.y, correction_Body.z);
+
+  struct Quat incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
+
+  incrementalRotation = NormalizeFastQ(incrementalRotation);
+
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
+  //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
+
+  AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
+
+  AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
+  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
+  //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
+
+  *ypr_p = YawPitchRoll(AttitudeEstimateQuat);
 
   ypr_p->x = RAD_TO_DEG*(ypr_p->x);
   ypr_p->y = RAD_TO_DEG*(ypr_p->y);
   ypr_p->z = RAD_TO_DEG*(ypr_p->z);
-
-  return (0);
-
-  // static struct Quat AttitudeEstimateQuat = {1.0f, 0.0f, 0.0f, 0.0f};
-  //
-  // static struct Vec3 correction_Body, correction_World;
-  // static struct Vec3 Accel_Body, Accel_World;
-  // static struct Vec3 GyroVec;
-  //
-  // // Sensor is placed upside down approx
-  // const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, 1.0f);
-  // // vertical vector in the World frame
-  //
-  // //std_printf(OSTR("\r\n\r\n"));
-  // //std_printf(OSTR("Calc Debug: %d: (%d, %d, %d), (%d, %d, %d) "), __LINE__, data_p->AcX, data_p->AcY, -data_p->AcZ, data_p->GyX, data_p->GyY, data_p->GyZ);
-  //
-  // GyroVec  = Vector((float)data_p->GyX, (float)data_p->GyY, (float)data_p->GyZ);	// move gyro data to vector structure
-  // Accel_Body = Vector((float)data_p->AcX, (float)data_p->AcY, (float)-data_p->AcZ);	// move accel data to vector structure
-  // // Manipulated z as -z as sensor placement seemed inverted to me
-  // // It seems there will be edge cases on border angles
-  //
-  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
-  // //, GyroVec.x, GyroVec.y, GyroVec.z
-  // //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
-  //
-  // //GyroVec = NormalizeV(GyroVec);
-  // //Accel_Body = NormalizeV(Accel_Body);
-  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
-  // //, GyroVec.x, GyroVec.y, GyroVec.z
-  // //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
-  //
-  //
-  // Accel_World = RotateQV(AttitudeEstimateQuat, Accel_Body); // rotate accel from body frame to world frame
-  //
-  // // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f), (%f, %f, %f) "), __LINE__
-  // // , AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w
-  // // , Accel_World.x, Accel_World.y, Accel_World.z);
-  //
-  // correction_World = CrossProdVV(Accel_World, VERTICAL); // cross product to determine error
-  //
-  // // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
-  // // , correction_World.x, correction_World.y, correction_World.z
-  // // , Accel_World.x, Accel_World.y, Accel_World.z);
-  //
-  // correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
-  //
-  // // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
-  // // , correction_World.x, correction_World.y, correction_World.z
-  // // , correction_Body.x, correction_Body.y, correction_Body.z);
-  //
-  // GyroVec = SumVV(GyroVec, correction_Body);  // add correction vector to gyro data
-  //
-  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f) "), __LINE__
-  // //, correction_Body.x, correction_Body.y, correction_Body.z);
-  //
-  // struct Quat incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
-  //
-  // incrementalRotation = NormalizeFastQ(incrementalRotation);
-  //
-  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
-  // //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
-  //
-  // AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
-  //
-  // AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
-  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
-  // //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
-  //
-  // *ypr_p = YawPitchRoll(AttitudeEstimateQuat);
-  //
-  // ypr_p->x = RAD_TO_DEG*(ypr_p->x);
-  // ypr_p->y = RAD_TO_DEG*(ypr_p->y);
-  // ypr_p->z = RAD_TO_DEG*(ypr_p->z);
 
   return (0);
 }
