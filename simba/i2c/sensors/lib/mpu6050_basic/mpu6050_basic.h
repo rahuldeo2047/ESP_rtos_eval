@@ -5,7 +5,8 @@
 
 
 #include "simba.h"
-#include "Math3D.h" // Any 3D vector lib
+//#include "Math3D.h" // Any 3D vector lib
+#include "MadgwickAHRS.h"
 
 #define MPU6050_BASIC_I2C_ADDRESS_0                             (0x68)
 #define MPU6050_BASIC_I2C_ADDRESS_1                             (0x69)
@@ -15,7 +16,10 @@
 
 #define MPU6050_BASIC_REG_PWR_MGMT_1                            (0x6B)
 
+#define MPU6050_BASIC_REG_DATA_RDY_INT_STATUS                   (0x3A)
+
 #define MPU6050_BASIC_REG_ACCEL_XOUT_H                          (0x3B)
+
 // #define MPU6050_BASIC_REG_ACCEL_XOUT_H                          (0x3B)
 // #define MPU6050_BASIC_REG_ACCEL_XOUT_L                          (0x3C)
 // #define MPU6050_BASIC_REG_ACCEL_YOUT_H                          (0x3D)
@@ -43,7 +47,7 @@ struct sMPUDATA_t
 
   uint32_t timestamp;
   /*int16_t*/
-  float AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+  int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 
 };
 

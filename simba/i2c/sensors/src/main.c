@@ -183,8 +183,8 @@ int main()
         {
 
 
-          if(0==(cnt%150))
-          std_printf(OSTR("Read data A[%f %f %f], Tmp:%f, G[%f %f %f], YPR[%f %f %f] \r\n"),
+          if(0==(cnt%10))
+          std_printf(OSTR("Read data A[%d %d %d], Tmp:%d, G[%d %d %d], YPR[%f %f %f] \r\n"),
             mpudata.AcX,
             mpudata.AcY,
             mpudata.AcZ,

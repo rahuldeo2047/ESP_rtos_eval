@@ -446,6 +446,8 @@ int mpu6050_basic_stop(struct mpu6050_basic_driver_t *self_p)
 {
 	ASSERTN(self_p != NULL, EINVAL);
 
+  //TODO
+
 	return (-ENOSYS);
 }
 
@@ -472,35 +474,57 @@ int mpu6050_basic_read_mpu(
 {
 	ASSERTN(self_p != NULL, EINVAL);
 
-	uint8_t buf[14];
+	uint8_t buf[15];
 	int res;
 	int attempt;
 
 	/* Read the pressure and temperature. */
 	res = self_p->transport_p->protocol_p->read(self_p,
-		MPU6050_BASIC_REG_ACCEL_XOUT_H,
+		MPU6050_BASIC_REG_DATA_RDY_INT_STATUS,
 		&buf[0],
 		sizeof(buf)
 	);
 
-	//if (res == 0)
+	if (res != 0 )
+  {
+    if (res != 0)
+    {
+      DLOG(WARNING, "Failed: to read sensor while data read %d.\r\n", res);
+      return (res);
+    }
+
+  }
+
+  if(0x01 == (0x01 & buf[0])) // Data ready //TODO: enum / Macro
 	{
 		//struct time_t uptime_p;
 		//sys_uptime(&uptime_p);
 		//data_p->timestamp = time_micros();//uptime_p.seconds;
 		//data_p->timestamp = uptime_p.nanoseconds;
 
-		data_p->AcX = ( buf[0] << 8 | buf[1] ) * self_p->config._internal.accelToG + self_p->config.bias.AcX;
-		data_p->AcY = ( buf[2] << 8 | buf[3] ) * self_p->config._internal.accelToG + self_p->config.bias.AcY;
-		data_p->AcZ = ( buf[4] << 8 | buf[5] ) * self_p->config._internal.accelToG + self_p->config.bias.AcZ;
-		data_p->Tmp = temp_C( buf[6] << 8 | buf[7] );
-		data_p->GyX = ( buf[8] << 8 | buf[9] ) * self_p->config._internal.gyroToRad + self_p->config.bias.GyX;
-		data_p->GyY = (buf[10] << 8 | buf[11]) * self_p->config._internal.gyroToRad + self_p->config.bias.GyY;
-		data_p->GyZ = (buf[12] << 8 | buf[13]) * self_p->config._internal.gyroToRad + self_p->config.bias.GyZ;
+    // data_p->AcX = ((float)(int16_t)( buf[1] << 8 | buf[2] )) * self_p->config._internal.accelToG + self_p->config.bias.AcX;
+		// data_p->AcY = ((float)(int16_t)( buf[3] << 8 | buf[4] )) * self_p->config._internal.accelToG + self_p->config.bias.AcY;
+		// data_p->AcZ = ((float)(int16_t)( buf[5] << 8 | buf[6] )) * self_p->config._internal.accelToG + self_p->config.bias.AcZ;
+		// data_p->Tmp = temp_C(( (int16_t) (buf[7] << 8 | buf[8]) ));
+		// data_p->GyX = ((float)(int16_t)( buf[9] << 8 | buf[10])) * self_p->config._internal.gyroToRad + self_p->config.bias.GyX;
+		// data_p->GyY = ((float)(int16_t)(buf[11] << 8 | buf[12])) * self_p->config._internal.gyroToRad + self_p->config.bias.GyY;
+		// data_p->GyZ = ((float)(int16_t)(buf[13] << 8 | buf[14])) * self_p->config._internal.gyroToRad + self_p->config.bias.GyZ;
 
-    deep_debug_log(FSTR("\r\n"
-                      "LINE: %d Ax %d.\r\n"), __LINE__, data_p->AcX );
+    data_p->AcX = ((int16_t)( buf[1] << 8 | buf[2] )) - (int16_t)self_p->config.bias.AcX;
+    data_p->AcY = ((int16_t)( buf[3] << 8 | buf[4] )) - (int16_t)self_p->config.bias.AcY;
+    data_p->AcZ = ((int16_t)( buf[5] << 8 | buf[6] )) - (int16_t)self_p->config.bias.AcZ;
+    data_p->Tmp = ((int16_t)( buf[7] << 8 | buf[8] ));
+    data_p->GyX = ((int16_t)( buf[9] << 8 | buf[10])) - (int16_t)self_p->config.bias.GyX;
+    data_p->GyY = ((int16_t)(buf[11] << 8 | buf[12])) - (int16_t)self_p->config.bias.GyY;
+    data_p->GyZ = ((int16_t)(buf[13] << 8 | buf[14])) - (int16_t)self_p->config.bias.GyZ;
+
+    //std_printf(FSTR("\r\n"
+    //                  "LINE: %d Ax %d.\r\n"), __LINE__, data_p->AcX );
 	}
+  else
+  {
+    // invalid data
+  }
 
 	return (res);
 }
@@ -538,76 +562,91 @@ int mpu6050_basic_transport_i2c_init(
 int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *ypr_p)
 {
 
-  static struct Quat AttitudeEstimateQuat = {1.0f, 0.0f, 0.0f, 0.0f};
+  //static Madgwick Madgwick;
+  struct Quat AttitudeEstimateQuat;
 
-  static struct Vec3 correction_Body, correction_World;
-  static struct Vec3 Accel_Body, Accel_World;
-  static struct Vec3 GyroVec;
+  MadgwickAHRSupdateIMU(&AttitudeEstimateQuat
+    , ((float)data_p->GyX)*self_p->config._internal.gyroToRad, ((float)data_p->GyY)*self_p->config._internal.gyroToRad, ((float)data_p->GyZ)*self_p->config._internal.gyroToRad
+    , ((float)data_p->AcX)*self_p->config._internal.accelToG, ((float)data_p->AcY)*self_p->config._internal.accelToG, ((float)-data_p->AcZ)*self_p->config._internal.accelToG);
 
-  // Sensor is placed upside down approx
-  const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, 1.0f);
-  // vertical vector in the World frame
-
-  //std_printf(OSTR("\r\n\r\n"));
-  //std_printf(OSTR("Calc Debug: %d: (%d, %d, %d), (%d, %d, %d) "), __LINE__, data_p->AcX, data_p->AcY, -data_p->AcZ, data_p->GyX, data_p->GyY, data_p->GyZ);
-
-  GyroVec  = Vector((float)data_p->GyX, (float)data_p->GyY, (float)data_p->GyZ);	// move gyro data to vector structure
-  Accel_Body = Vector((float)data_p->AcX, (float)data_p->AcY, (float)-data_p->AcZ);	// move accel data to vector structure
-  // Manipulated z as -z as sensor placement seemed inverted to me
-  // It seems there will be edge cases on border angles
-
-  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
-  //, GyroVec.x, GyroVec.y, GyroVec.z
-  //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
-
-  //GyroVec = NormalizeV(GyroVec);
-  //Accel_Body = NormalizeV(Accel_Body);
-  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
-  //, GyroVec.x, GyroVec.y, GyroVec.z
-  //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
-
-
-  Accel_World = RotateQV(AttitudeEstimateQuat, Accel_Body); // rotate accel from body frame to world frame
-
-  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f), (%f, %f, %f) "), __LINE__
-  // , AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w
-  // , Accel_World.x, Accel_World.y, Accel_World.z);
-
-  correction_World = CrossProdVV(Accel_World, VERTICAL); // cross product to determine error
-
-  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
-  // , correction_World.x, correction_World.y, correction_World.z
-  // , Accel_World.x, Accel_World.y, Accel_World.z);
-
-  correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
-
-  // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
-  // , correction_World.x, correction_World.y, correction_World.z
-  // , correction_Body.x, correction_Body.y, correction_Body.z);
-
-  GyroVec = SumVV(GyroVec, correction_Body);  // add correction vector to gyro data
-
-  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f) "), __LINE__
-  //, correction_Body.x, correction_Body.y, correction_Body.z);
-
-  struct Quat incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
-
-  incrementalRotation = NormalizeFastQ(incrementalRotation);
-
-  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
-  //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
-
-  AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
-
-  AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
-  //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
-  //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
-
-  *ypr_p = YawPitchRoll(AttitudeEstimateQuat);
+  toEulerAngle(&AttitudeEstimateQuat, ypr_p);
 
   ypr_p->x = RAD_TO_DEG*(ypr_p->x);
   ypr_p->y = RAD_TO_DEG*(ypr_p->y);
   ypr_p->z = RAD_TO_DEG*(ypr_p->z);
+
+  return (0);
+
+  // static struct Quat AttitudeEstimateQuat = {1.0f, 0.0f, 0.0f, 0.0f};
+  //
+  // static struct Vec3 correction_Body, correction_World;
+  // static struct Vec3 Accel_Body, Accel_World;
+  // static struct Vec3 GyroVec;
+  //
+  // // Sensor is placed upside down approx
+  // const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, 1.0f);
+  // // vertical vector in the World frame
+  //
+  // //std_printf(OSTR("\r\n\r\n"));
+  // //std_printf(OSTR("Calc Debug: %d: (%d, %d, %d), (%d, %d, %d) "), __LINE__, data_p->AcX, data_p->AcY, -data_p->AcZ, data_p->GyX, data_p->GyY, data_p->GyZ);
+  //
+  // GyroVec  = Vector((float)data_p->GyX, (float)data_p->GyY, (float)data_p->GyZ);	// move gyro data to vector structure
+  // Accel_Body = Vector((float)data_p->AcX, (float)data_p->AcY, (float)-data_p->AcZ);	// move accel data to vector structure
+  // // Manipulated z as -z as sensor placement seemed inverted to me
+  // // It seems there will be edge cases on border angles
+  //
+  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
+  // //, GyroVec.x, GyroVec.y, GyroVec.z
+  // //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
+  //
+  // //GyroVec = NormalizeV(GyroVec);
+  // //Accel_Body = NormalizeV(Accel_Body);
+  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f)\r\n"), __LINE__
+  // //, GyroVec.x, GyroVec.y, GyroVec.z
+  // //, Accel_Body.x, Accel_Body.y, Accel_Body.z);
+  //
+  //
+  // Accel_World = RotateQV(AttitudeEstimateQuat, Accel_Body); // rotate accel from body frame to world frame
+  //
+  // // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f), (%f, %f, %f) "), __LINE__
+  // // , AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w
+  // // , Accel_World.x, Accel_World.y, Accel_World.z);
+  //
+  // correction_World = CrossProdVV(Accel_World, VERTICAL); // cross product to determine error
+  //
+  // // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
+  // // , correction_World.x, correction_World.y, correction_World.z
+  // // , Accel_World.x, Accel_World.y, Accel_World.z);
+  //
+  // correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
+  //
+  // // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
+  // // , correction_World.x, correction_World.y, correction_World.z
+  // // , correction_Body.x, correction_Body.y, correction_Body.z);
+  //
+  // GyroVec = SumVV(GyroVec, correction_Body);  // add correction vector to gyro data
+  //
+  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f) "), __LINE__
+  // //, correction_Body.x, correction_Body.y, correction_Body.z);
+  //
+  // struct Quat incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
+  //
+  // incrementalRotation = NormalizeFastQ(incrementalRotation);
+  //
+  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
+  // //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
+  //
+  // AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
+  //
+  // AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
+  // //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
+  // //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
+  //
+  // *ypr_p = YawPitchRoll(AttitudeEstimateQuat);
+  //
+  // ypr_p->x = RAD_TO_DEG*(ypr_p->x);
+  // ypr_p->y = RAD_TO_DEG*(ypr_p->y);
+  // ypr_p->z = RAD_TO_DEG*(ypr_p->z);
 
   return (0);
 }
@@ -633,7 +672,19 @@ int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sM
 	float sampleTempGY = 0;
 	float sampleTempGZ = 0;
 
-	while(sampleCount<1000)
+  while(sampleCount<50) // init time
+  {
+    sampleCount++;
+    res = mpu6050_basic_read_mpu(self_p, data_p);
+    if (res != 0)
+    {
+      DLOG(WARNING, "Failed: to read sensor while warmup %d.\r\n", res);
+      return (res);
+    }
+  }
+
+  sampleCount = 0;
+	while(sampleCount<100)
   {
 
     res = mpu6050_basic_read_mpu(self_p, data_p);
@@ -644,34 +695,39 @@ int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sM
       return (res);
     }
 
-		sampleTempAX -= data_p->AcX;
-		sampleTempAY -= data_p->AcY;
-		sampleTempAZ -= data_p->AcZ;
+		sampleTempAX += (float)data_p->AcX;
+		sampleTempAY += (float)data_p->AcY;
+		sampleTempAZ += (float)data_p->AcZ;
 
-    sampleTempGX -= data_p->GyX;
-		sampleTempGY -= data_p->GyY;
-		sampleTempGZ -= data_p->GyZ;
+    sampleTempGX += (float)data_p->GyX;
+		sampleTempGY += (float)data_p->GyY;
+		sampleTempGZ += (float)data_p->GyZ;
 
-		sampleCount += 1.0;
+		sampleCount += 1;
 
 		thrd_sleep_us(self_p->config._internal._samplePeriod);
 	}
 
-  if(sampleTempAX > (.75f * sampleCount)){sampleTempAX -= sampleCount;}
-  if(sampleTempAY > (.75f * sampleCount)){sampleTempAY -= sampleCount;}
-  if(sampleTempAZ > (.75f * sampleCount)){sampleTempAZ -= sampleCount;}
+  // if(sampleTempAX > (.75f * sampleCount)){sampleTempAX -= sampleCount;}
+  // if(sampleTempAY > (.75f * sampleCount)){sampleTempAY -= sampleCount;}
+  // if(sampleTempAZ > (.75f * sampleCount)){sampleTempAZ -= sampleCount;}
+  //
+  // if(sampleTempAX < (-.75f * sampleCount)){sampleTempAX += sampleCount;}
+  // if(sampleTempAY < (-.75f * sampleCount)){sampleTempAY += sampleCount;}
+  // if(sampleTempAZ < (-.75f * sampleCount)){sampleTempAZ += sampleCount;}
 
-  if(sampleTempAX < (-.75f * sampleCount)){sampleTempAX += sampleCount;}
-  if(sampleTempAY < (-.75f * sampleCount)){sampleTempAY += sampleCount;}
-  if(sampleTempAZ < (-.75f * sampleCount)){sampleTempAZ += sampleCount;}
+	self_p->config.bias.AcX = (int16_t)(sampleTempAX / sampleCount); // average
+	self_p->config.bias.AcY = (int16_t)(sampleTempAY / sampleCount);
+	self_p->config.bias.AcZ = (int16_t)(sampleTempAZ / sampleCount);
 
-	self_p->config.bias.AcX = (sampleTempAX / sampleCount); // average
-	self_p->config.bias.AcY = (sampleTempAY / sampleCount);
-	self_p->config.bias.AcZ = (sampleTempAZ / sampleCount);
+  self_p->config.bias.GyX = (int16_t)(sampleTempGX / sampleCount); // average
+	self_p->config.bias.GyY = (int16_t)(sampleTempGY / sampleCount);
+	self_p->config.bias.GyZ = (int16_t)(sampleTempGZ / sampleCount);
 
-  self_p->config.bias.GyX = (sampleTempGX / sampleCount); // average
-	self_p->config.bias.GyY = (sampleTempGY / sampleCount);
-	self_p->config.bias.GyZ = (sampleTempGZ / sampleCount);
+  // std_printf(FSTR("\r\n"
+  //                   "LINE: %d Ax %d %d.\r\n"), __LINE__, data_p->AcX, self_p->config.bias.AcX );
+
+  //                  while(1);
 
   return 0;
 
