@@ -518,6 +518,15 @@ int mpu6050_basic_read_mpu(
     data_p->GyY = ((int16_t)(buf[11] << 8 | buf[12])) - (int16_t)self_p->config.bias.GyY;
     data_p->GyZ = ((int16_t)(buf[13] << 8 | buf[14])) - (int16_t)self_p->config.bias.GyZ;
 
+    #define NOISE_SUPP_BIT (0)
+    data_p->AcX = ( (data_p->AcX>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
+    data_p->AcY = ( (data_p->AcY>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
+    data_p->AcZ = ( (data_p->AcZ>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
+    //data_p->Tmp = ((int16_t)( buf[7] << 8 | buf[8] ));
+    data_p->GyX = ( (data_p->GyX>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
+    data_p->GyY = ( (data_p->GyY>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
+    data_p->GyZ = ( (data_p->GyZ>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
+
     //std_printf(FSTR("\r\n"
     //                  "LINE: %d Ax %d.\r\n"), __LINE__, data_p->AcX );
 	}
@@ -582,7 +591,7 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
   static struct Vec3 correction_Body, correction_World;
   static struct Vec3 Accel_Body, Accel_World;
   static struct Vec3 GyroVec;
-
+  struct Quat incrementalRotation;
   // Sensor is placed upside down approx
   const struct Vec3 VERTICAL = Vector(0.0f, 0.0f, 1.0f);
   // vertical vector in the World frame
@@ -599,6 +608,10 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
                      ((float)data_p->AcY)*self_p->config._internal.accelToG,
                      ((float)-data_p->AcZ)*self_p->config._internal.accelToG
               );
+
+
+  //GyroVec = NormalizeV(GyroVec);
+  //Accel_Body = NormalizeV(Accel_Body);
 
   //GyroVec  = Vector((float)data_p->GyX, (float)data_p->GyY, (float)data_p->GyZ);	// move gyro data to vector structure
   //Accel_Body = Vector((float)data_p->AcX, (float)data_p->AcY, (float)-data_p->AcZ);	// move accel data to vector structure
@@ -617,31 +630,35 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
 
 
   Accel_World = RotateQV(AttitudeEstimateQuat, Accel_Body); // rotate accel from body frame to world frame
+  //Accel_World = NormalizeV(Accel_World);
 
   // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f), (%f, %f, %f) "), __LINE__
   // , AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w
   // , Accel_World.x, Accel_World.y, Accel_World.z);
 
   correction_World = CrossProdVV(Accel_World, VERTICAL); // cross product to determine error
+  //correction_World = NormalizeV(correction_World);
 
   // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
   // , correction_World.x, correction_World.y, correction_World.z
   // , Accel_World.x, Accel_World.y, Accel_World.z);
 
   correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
+  //correction_Body = NormalizeV(correction_Body);
 
   // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
   // , correction_World.x, correction_World.y, correction_World.z
   // , correction_Body.x, correction_Body.y, correction_Body.z);
 
   GyroVec = SumVV(GyroVec, correction_Body);  // add correction vector to gyro data
+  //GyroVec = NormalizeV(GyroVec);
 
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f) "), __LINE__
   //, correction_Body.x, correction_Body.y, correction_Body.z);
 
-  struct Quat incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
+  incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
 
-  incrementalRotation = NormalizeFastQ(incrementalRotation);
+  incrementalRotation = NormalizeQ(incrementalRotation);
 
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
   //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
@@ -734,8 +751,14 @@ int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sM
 	self_p->config.bias.GyY = (int16_t)(sampleTempGY / sampleCount);
 	self_p->config.bias.GyZ = (int16_t)(sampleTempGZ / sampleCount);
 
-  // std_printf(FSTR("\r\n"
-  //                   "LINE: %d Ax %d %d.\r\n"), __LINE__, data_p->AcX, self_p->config.bias.AcX );
+   std_printf(FSTR("\r\n"
+   "LINE: %d Bias: "
+   "A %d %d %d"
+   " | G %d %d %d"
+   "\r\n"), __LINE__,
+   data_p->AcX, data_p->AcY, data_p->AcZ,
+   data_p->GyX, data_p->GyY, data_p->GyZ
+  );
 
   //                  while(1);
 
