@@ -96,6 +96,7 @@ struct mpu6050_basic_config
 {
 	struct mpu6050_basic_config_initial config;
   struct sMPUDATA_t bias;
+  int bias_precalculated;
   struct mpu6050_basic_config_internal _internal;
 };
 

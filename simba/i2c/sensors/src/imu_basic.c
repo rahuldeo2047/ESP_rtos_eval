@@ -22,6 +22,10 @@ void *imu_thrd(void *arg_p)
   struct time_t time1, timeRes;
   struct time_t time2;
 
+
+  //struct time_t timestamp, timestamplast, timestampdelta;
+  //uint32_t dt_us;
+
   struct bus_info_t *bus_info_p;
   bus_info_p = (struct bus_info_t *)arg_p;
 
@@ -41,9 +45,6 @@ void *imu_thrd(void *arg_p)
 
   #endif
 
-  //struct sMPUDATA_t mpudata;
-  //struct Vec3 YPR;
-
   struct imu_thrd_data_t imudata;
 
   int address;
@@ -56,7 +57,6 @@ void *imu_thrd(void *arg_p)
   mpu6050basic_config.sampleRate    = 400;
 
   mpu6050basic_dev.config.config = mpu6050basic_config;
-
 
   imudata.seq = 0;
 
@@ -144,24 +144,24 @@ void *imu_thrd(void *arg_p)
     }
 
 
-    #include <limits.h>
-    std_printf(OSTR("tm %lu,  %lu,  %lu.\r\n"),
-    INT_MAX,
-    CONFIG_SYSTEM_TICK_FREQUENCY,
-    INT_MAX/CONFIG_SYSTEM_TICK_FREQUENCY);
+    // #include <limits.h>
+    // std_printf(OSTR("tm %lu,  %lu,  %lu.\r\n"),
+    // INT_MAX,
+    // CONFIG_SYSTEM_TICK_FREQUENCY,
+    // INT_MAX/CONFIG_SYSTEM_TICK_FREQUENCY);
 
     int cnt = 0;
     while (1)
     {
       cnt++;
-      time_get(&time1);
-      sys_uptime(&uptime);
+      //time_get(&time1);
+      //sys_uptime(&uptime);
 
-
-      //thrd_sleep_us(mpu6050basic_dev.config._internal._samplePeriod/2);
+      // thread sleep is not accurate
+      //thrd_sleep_us(1);//mpu6050basic_dev.config._internal._samplePeriod);
       //thrd_sleep_ms(1000);
 
-      /* Read temperature and pressure from the BMP280. */
+      /* Read accelerometer, temparature and gyro data from mpu6050 . */
       res = mpu6050_basic_read(&mpu6050basic_dev, &imudata.mpudata);
 
 
@@ -174,14 +174,27 @@ void *imu_thrd(void *arg_p)
     }
     else
     {
+
+      //timestamplast = timestamp;
+      //time_get(&timestamp);
+      //time_subtract(&timestampdelta,   &timestamp,  &timestamplast);
+
+      // if(timestampdelta.seconds > 0)
+      // {
+      //   std_printf(OSTR("warn: very late calculation %lu.%lu.\r\n")
+      //   , timestampdelta.seconds, timestampdelta.nanoseconds);
+      // }
+
+      //dt_us = timestampdelta.nanoseconds;
+
       res = mpu6050_motion_calc(&mpu6050basic_dev, &imudata.mpudata, &imudata.YPR);
 
-      luptime = uptime;
+      //luptime = uptime;
       time_get(&time2);
-      sys_uptime(&uptime);
-
-      time_subtract(&timeRes,   &time2,  &time1);
-      time_subtract(&uptimeRes, &uptime, &luptime);
+      // sys_uptime(&uptime);
+      //
+      // time_subtract(&timeRes,   &time2,  &time1);
+      // time_subtract(&uptimeRes, &uptime, &luptime);
 
       imudata.ts = time2;
 

@@ -33,11 +33,17 @@
 
 
 #include "imu_basic.h"
+#include "communication.h"
 //#include "mpu6050_basic.h"
 //#
 #include "common.h"
 
 static THRD_STACK(imu_basic_stack, 1024);
+static THRD_STACK(communication_stack, 1024);
+
+
+// Wifi test
+//
 
 int main()
 {
@@ -82,6 +88,15 @@ int main()
       20,
       imu_basic_stack,
       sizeof(imu_basic_stack)) != NULL);
+
+
+    // wifi
+    //test_station();
+    BTASSERT(thrd_spawn(comm_thrd,
+      (void*)&bus_info,
+      21,
+      communication_stack,
+      sizeof(communication_stack)) != NULL);
 
 
       while(1)

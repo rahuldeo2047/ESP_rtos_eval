@@ -99,15 +99,20 @@ int mpu6050_basic_init(
 	self_p->config._internal.gyroToRad = DEG_TO_RAD / (GYRO_BASE * (float)(1 << (3 - self_p->config.config.gyroRange)));	// constant to convert from raw int to float rad/sec
 
 	self_p->config.bias.timestamp = 0;
-	self_p->config.bias.AcX = 0;
-	self_p->config.bias.AcY = 0;
-	self_p->config.bias.AcZ = 0;
+	self_p->config.bias.AcX = -1384;
+	self_p->config.bias.AcY = -620;
+	self_p->config.bias.AcZ = 16448;
 	self_p->config.bias.Tmp = 0;
-	self_p->config.bias.GyX = 0;
-	self_p->config.bias.GyY = 0;
-	self_p->config.bias.GyZ = 0;
+	self_p->config.bias.GyX = -7;
+	self_p->config.bias.GyY = 31;
+	self_p->config.bias.GyZ = 9;
 
+  self_p->config.bias_precalculated = 1; // set it one to retain the biasing, recalculate otherwise
 
+//  LINE: 762 Bias: A -1832 -510 16370 | G -7 35 5
+//  LINE: 770 Bias: A -1022 -634 16464 | G -4 32 8
+//  LINE: 770 Bias: A -1384 -620 16448 | G -8 32 8
+//
   std_printf(FSTR("\r\n"
   "LINE: %d : \r\n"
   "self_p->config._internal._sampleRateDiv  %d\r\n"
@@ -520,14 +525,15 @@ int mpu6050_basic_read_mpu(
     data_p->GyY = ((int16_t)(buf[11] << 8 | buf[12])) - (int16_t)self_p->config.bias.GyY;
     data_p->GyZ = ((int16_t)(buf[13] << 8 | buf[14])) - (int16_t)self_p->config.bias.GyZ;
 
-    #define NOISE_SUPP_BIT (0)
-    data_p->AcX = ( (data_p->AcX>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
-    data_p->AcY = ( (data_p->AcY>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
-    data_p->AcZ = ( (data_p->AcZ>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
+    #define NOISE_SUPP_ACC_MASK (0b1111111111111100)
+    #define NOISE_SUPP_GYR_MASK (0b1111111111111100)
+    data_p->AcX = ( (data_p->AcX & NOISE_SUPP_ACC_MASK) );
+    data_p->AcY = ( (data_p->AcY & NOISE_SUPP_ACC_MASK) );
+    data_p->AcZ = ( (data_p->AcZ & NOISE_SUPP_ACC_MASK) );
     //data_p->Tmp = ((int16_t)( buf[7] << 8 | buf[8] ));
-    data_p->GyX = ( (data_p->GyX>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
-    data_p->GyY = ( (data_p->GyY>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
-    data_p->GyZ = ( (data_p->GyZ>>NOISE_SUPP_BIT)<<NOISE_SUPP_BIT );
+    data_p->GyX = ( (data_p->GyX & NOISE_SUPP_GYR_MASK) );
+    data_p->GyY = ( (data_p->GyY & NOISE_SUPP_GYR_MASK) );
+    data_p->GyZ = ( (data_p->GyZ & NOISE_SUPP_GYR_MASK) );
 
     //std_printf(FSTR("\r\n"
     //                  "LINE: %d Ax %d.\r\n"), __LINE__, data_p->AcX );
@@ -658,16 +664,16 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f) "), __LINE__
   //, correction_Body.x, correction_Body.y, correction_Body.z);
 
-  incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
+  incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  //dt_us);//self_p->config._internal._samplePeriod);  // create incremental rotation quat
 
-  incrementalRotation = NormalizeQ(incrementalRotation);
+  //incrementalRotation = NormalizeQ(incrementalRotation);
 
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
   //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
 
   AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
 
-  AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
+  //AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
   //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
 
@@ -686,12 +692,9 @@ int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sM
 {
 
   int res;
-	self_p->config.bias.AcX = 0;
-	self_p->config.bias.AcY = 0;
-	self_p->config.bias.AcZ = 0;
-  self_p->config.bias.GyX = 0;
-	self_p->config.bias.GyY = 0;
-	self_p->config.bias.GyZ = 0;
+
+  if(1 == self_p->config.bias_precalculated)
+    return (0);
 
 	float sampleCount = 0;
 
@@ -702,6 +705,13 @@ int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sM
   float sampleTempGX = 0;
 	float sampleTempGY = 0;
 	float sampleTempGZ = 0;
+
+  self_p->config.bias.AcX = 0;
+	self_p->config.bias.AcY = 0;
+	self_p->config.bias.AcZ = 0;
+  self_p->config.bias.GyX = 0;
+	self_p->config.bias.GyY = 0;
+	self_p->config.bias.GyZ = 0;
 
   while(sampleCount<50) // init time
   {
