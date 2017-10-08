@@ -31,206 +31,30 @@
 #include "simba.h"
 //#include "config.h"
 
-#include "mpu6050_basic.h"
+#include "imu_basic.h"
+
+
+static THRD_STACK(imu_basic_stack, 1024);
 
 int main()
 {
 
-  struct mpu6050_basic_driver_t mpu6050basic_dev;
-  struct mpu6050_basic_transport_i2c_t mpu6050basic_transport;
-  struct mpu6050_basic_config_initial mpu6050basic_config;
-
-  // Profliling
-  struct time_t uptime, uptimeRes;
-  struct time_t luptime;
-  struct time_t time1, timeRes;
-  struct time_t time2;
-
-
-  #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
-  struct i2c_driver_t i2c;
-
-  #else
-
-  #define SCL_PIN &pin_d4_dev
-  #define SDA_PIN &pin_d5_dev
-
-  struct i2c_soft_driver_t i2c;
-
-  #endif
-
-  struct sMPUDATA_t mpudata;
-  struct Vec3 YPR;
-
-  int address;
-  int number_of_slaves;
-  int res;
-
-  mpu6050basic_config.accelRange    = 0;
-  mpu6050basic_config.filterLevel   = 6;
-  mpu6050basic_config.gyroRange     = 3;
-  mpu6050basic_config.sampleRate    = 400;
-
-  mpu6050basic_dev.config.config = mpu6050basic_config;
-
   sys_start();
+
 
   log_object_print(NULL,
                  LOG_INFO,
-                 OSTR("In user main...\r\n"));
-
-  #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
-  std_printf(FSTR("Hardware I2C is being used.\r\n"
-                  "\r\n"));
-  i2c_module_init();
-
-  #else
-  std_printf(FSTR("Software I2C is being used.\r\n"
-                  "\r\n"));
-  i2c_soft_module_init();
-
-  #endif
-
-  mpu6050_basic_module_init();
-
-  //i2c_init(&i2c, &i2c_0_dev, I2C_BAUDRATE_100KBPS, -1);
-  #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
-
-  i2c_init(&i2c, &i2c_0_dev, I2C_BAUDRATE_400KBPS, -1);
-  i2c_start(&i2c);
-
-  #else
-
-  i2c_soft_init(&i2c, SCL_PIN, SDA_PIN, 50000, 1000000, 1000);
-  i2c_soft_start(&i2c);
-
-  #endif
-
-  std_printf(FSTR("Scanning the i2c bus for slaves...\r\n"
-                  "\r\n"));
-
-  number_of_slaves = 0;
-
-  for (address = 0; address < 128; address++)
-  {
-      #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
-      if (i2c_scan(&i2c, address) == 1)
-      #else
-      if (i2c_soft_scan(&i2c, address) == 1)
-      #endif
-      {
-          std_printf(FSTR("Found slave with address 0x%x.\r\n"), address);
-          number_of_slaves++;
-      }
-  }
-
-  std_printf(FSTR("\r\n"
-                  "Scan complete. Found %d slaves.\r\n"), number_of_slaves);
-
-  #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
-
-  if (i2c_scan(&i2c, MPU6050_BASIC_I2C_ADDRESS_0) == 1)
-
-  #else
-
-  if (i2c_soft_scan(&i2c, MPU6050_BASIC_I2C_ADDRESS_0) == 1)
-
-  #endif
-  {
-    std_printf(FSTR("recheck Found slave with address 0x%x.\r\n"), MPU6050_BASIC_I2C_ADDRESS_0);
-  }
-
-  res = mpu6050_basic_transport_i2c_init(&mpu6050basic_transport,
-    &i2c,
-    MPU6050_BASIC_I2C_ADDRESS_0);
-
-    std_printf(FSTR("\r\n"
-    "transport initialization status: %d.\r\n"), res);
+                 OSTR("IMU basic attempting to start...\r\n"));
 
 
-    res = mpu6050_basic_init(&mpu6050basic_dev, &mpu6050basic_transport.base);
-
-    std_printf(FSTR("\r\n"
-    "mpu initialization status: %d.\r\n"), res);
-
-
-    res = mpu6050_basic_start(&mpu6050basic_dev, &mpudata);
-
-    if (res != 0) {
-      std_printf(OSTR("Failed to start the device.\r\n"));
-      return (res);
-    }
+  // thrd_spawn .... mpu task
+  BTASSERT(thrd_spawn(imu_thrd,
+                        NULL,
+                        20,
+                        imu_basic_stack,
+                        sizeof(imu_basic_stack)) != NULL);
 
 
-    #include <limits.h>
-    std_printf(OSTR("tm %lu,  %lu,  %lu.\r\n"),
-    INT_MAX,
-    CONFIG_SYSTEM_TICK_FREQUENCY,
-    INT_MAX/CONFIG_SYSTEM_TICK_FREQUENCY);
-
-    int cnt = 0;
-    while (1)
-    {
-      cnt++;
-      time_get(&time1);
-      sys_uptime(&uptime);
-
-
-      //thrd_sleep_us(mpu6050basic_dev.config._internal._samplePeriod/2);
-      //thrd_sleep_ms(1000);
-
-      /* Read temperature and pressure from the BMP280. */
-      res = mpu6050_basic_read(&mpu6050basic_dev, &mpudata);
-
-
-      if (res != 0)
-      {
-        std_printf(OSTR("Read failed with %d.\r\n"),
-          res
-        );
-        continue;
-      }
-      else
-      {
-        res = mpu6050_motion_calc(&mpu6050basic_dev, &mpudata, &YPR);
-
-        luptime = uptime;
-        time_get(&time2);
-        sys_uptime(&uptime);
-
-        time_subtract(&timeRes,   &time2,  &time1);
-        time_subtract(&uptimeRes, &uptime, &luptime);
-
-        if (res != 0)
-        {
-          std_printf(OSTR("Read failed with %d.\r\n"),
-            res
-          );
-          continue;
-        }
-        else
-        {
-
-          if(0==(cnt%10))
-          std_printf(OSTR("Read data %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),
-            timeRes.seconds,
-            timeRes.nanoseconds,
-            mpudata.AcX,
-            mpudata.AcY,
-            mpudata.AcZ,
-            /*mpudata.Tmp, */(float)(mpudata.Tmp) * (1.0f / 340.0f) + 36.53f,
-            mpudata.GyX,
-            mpudata.GyY,
-            mpudata.GyZ,
-            YPR.x,
-            YPR.y,
-            YPR.z
-          );
-        }
-
-      }
-
-    }
 
     return (0);
 }
