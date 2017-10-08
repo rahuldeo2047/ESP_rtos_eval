@@ -57,7 +57,7 @@ struct mpu6050_basic_config_internal
   uint8_t  _sampleRateDiv;
   uint8_t  _gFSR;
   uint8_t  _aFSR;
-  uint32_t _samplePeriod;
+  uint32_t _samplePeriod; // uS
   float accelToG, gyroToRad;
 };
 

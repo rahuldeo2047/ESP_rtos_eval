@@ -40,6 +40,13 @@ int main()
   struct mpu6050_basic_transport_i2c_t mpu6050basic_transport;
   struct mpu6050_basic_config_initial mpu6050basic_config;
 
+  // Profliling
+  struct time_t uptime, uptimeRes;
+  struct time_t luptime;
+  struct time_t time1, timeRes;
+  struct time_t time2;
+
+
   #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
   struct i2c_driver_t i2c;
 
@@ -67,6 +74,10 @@ int main()
   mpu6050basic_dev.config.config = mpu6050basic_config;
 
   sys_start();
+
+  log_object_print(NULL,
+                 LOG_INFO,
+                 OSTR("In user main...\r\n"));
 
   #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
   std_printf(FSTR("Hardware I2C is being used.\r\n"
@@ -150,11 +161,23 @@ int main()
       return (res);
     }
 
+
+    #include <limits.h>
+    std_printf(OSTR("tm %lu,  %lu,  %lu.\r\n"),
+    INT_MAX,
+    CONFIG_SYSTEM_TICK_FREQUENCY,
+    INT_MAX/CONFIG_SYSTEM_TICK_FREQUENCY);
+
     int cnt = 0;
     while (1)
     {
       cnt++;
-      thrd_sleep_us(mpu6050basic_dev.config._internal._samplePeriod);
+      time_get(&time1);
+      sys_uptime(&uptime);
+
+
+      //thrd_sleep_us(mpu6050basic_dev.config._internal._samplePeriod/2);
+      //thrd_sleep_ms(1000);
 
       /* Read temperature and pressure from the BMP280. */
       res = mpu6050_basic_read(&mpu6050basic_dev, &mpudata);
@@ -171,6 +194,12 @@ int main()
       {
         res = mpu6050_motion_calc(&mpu6050basic_dev, &mpudata, &YPR);
 
+        luptime = uptime;
+        time_get(&time2);
+        sys_uptime(&uptime);
+
+        time_subtract(&timeRes,   &time2,  &time1);
+        time_subtract(&uptimeRes, &uptime, &luptime);
 
         if (res != 0)
         {
@@ -182,9 +211,10 @@ int main()
         else
         {
 
-
           if(0==(cnt%10))
-          std_printf(OSTR("Read data A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),
+          std_printf(OSTR("Read data %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),
+            timeRes.seconds,
+            timeRes.nanoseconds,
             mpudata.AcX,
             mpudata.AcY,
             mpudata.AcZ,

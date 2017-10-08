@@ -68,10 +68,10 @@ int mpu6050_basic_init(
 
   self_p->transport_p = transport_p;
 
-  self_p->config.config.accelRange	=	0;
-	self_p->config.config.filterLevel	= 6;
-	self_p->config.config.gyroRange		= 3;
-	self_p->config.config.sampleRate  = 400;
+  // self_p->config.config.accelRange	=	0;
+	// self_p->config.config.filterLevel	= 6;
+	// self_p->config.config.gyroRange		= 3;
+	// self_p->config.config.sampleRate  = 400;
 
 	if(self_p->config.config.filterLevel > 0)
 	{
@@ -111,6 +111,7 @@ int mpu6050_basic_init(
   std_printf(FSTR("\r\n"
   "LINE: %d : \r\n"
   "self_p->config._internal._sampleRateDiv  %d\r\n"
+  "self_p->config.config.sampleRate         %d\r\n"
   "self_p->config.config.filterLevel        %d\r\n"
   "self_p->config._internal._gFSR           %d\r\n"
   "self_p->config._internal._aFSR           %d\r\n"
@@ -121,6 +122,7 @@ int mpu6050_basic_init(
 )
   , __LINE__
   , self_p->config._internal._sampleRateDiv
+  , self_p->config.config.sampleRate
   , self_p->config.config.filterLevel
   , self_p->config._internal._gFSR
   , self_p->config._internal._aFSR
@@ -658,18 +660,20 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
 
   incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
 
-  incrementalRotation = NormalizeQ(incrementalRotation);
+  //incrementalRotation = NormalizeQ(incrementalRotation);
 
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
   //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
 
   AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
 
-  AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
+  //AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
   //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
 
   *ypr_p = YawPitchRoll(AttitudeEstimateQuat);
+
+  //NormalizeV(*ypr_p); // Not valid
 
   ypr_p->x = RAD_TO_DEG*(ypr_p->x);
   ypr_p->y = RAD_TO_DEG*(ypr_p->y);
