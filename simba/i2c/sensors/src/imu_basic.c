@@ -23,8 +23,8 @@ void *imu_thrd(void *arg_p)
   struct time_t time2;
 
 
-  //struct time_t timestamp, timestamplast, timestampdelta;
-  //uint32_t dt_us;
+  struct time_t timestamp, timestamplast, timestampdelta;
+  uint32_t dt_us, tdt_us;
 
   struct bus_info_t *bus_info_p;
   bus_info_p = (struct bus_info_t *)arg_p;
@@ -144,12 +144,6 @@ void *imu_thrd(void *arg_p)
     }
 
 
-    // #include <limits.h>
-    // std_printf(OSTR("tm %lu,  %lu,  %lu.\r\n"),
-    // INT_MAX,
-    // CONFIG_SYSTEM_TICK_FREQUENCY,
-    // INT_MAX/CONFIG_SYSTEM_TICK_FREQUENCY);
-
     int cnt = 0;
     while (1)
     {
@@ -160,6 +154,7 @@ void *imu_thrd(void *arg_p)
       // thread sleep is not accurate
       //thrd_sleep_us(1);//mpu6050basic_dev.config._internal._samplePeriod);
       //thrd_sleep_ms(1000);
+      //time_busy_wait_us(mpu6050basic_dev.config._internal._samplePeriod);
 
       /* Read accelerometer, temparature and gyro data from mpu6050 . */
       res = mpu6050_basic_read(&mpu6050basic_dev, &imudata.mpudata);
@@ -174,63 +169,67 @@ void *imu_thrd(void *arg_p)
     }
     else
     {
-
-      //timestamplast = timestamp;
-      //time_get(&timestamp);
-      //time_subtract(&timestampdelta,   &timestamp,  &timestamplast);
-
-      // if(timestampdelta.seconds > 0)
-      // {
-      //   std_printf(OSTR("warn: very late calculation %lu.%lu.\r\n")
-      //   , timestampdelta.seconds, timestampdelta.nanoseconds);
-      // }
-
-      //dt_us = timestampdelta.nanoseconds;
-
-      res = mpu6050_motion_calc(&mpu6050basic_dev, &imudata.mpudata, &imudata.YPR);
-
-      //luptime = uptime;
-      time_get(&time2);
-      // sys_uptime(&uptime);
+      time_get(&timestamp);
+      time_subtract(&timestampdelta, &timestamp,  &timestamplast);
+      // //dt_us = (timestamp.nanoseconds/1000UL) - (timestamplast.nanoseconds/1000UL); // uS
+      dt_us = timestampdelta.nanoseconds/1000UL; // corrections
       //
-      // time_subtract(&timeRes,   &time2,  &time1);
-      // time_subtract(&uptimeRes, &uptime, &luptime);
-
-      imudata.ts = time2;
-
-      if (res != 0)
-      {
-        std_printf(
-          OSTR("Read failed with %d.\r\n"),
-          res
-        );
-        continue;
-      }
-      else
+      dt_us = dt_us;
+      //if(dt_us >= mpu6050basic_dev.config._internal._samplePeriod/2)
       {
 
-        //if(0==(cnt%10))
+        timestamplast = timestamp;
+        //
+        // if(timestampdelta.seconds > 0)
+        // {
+        //   std_printf(OSTR("warn: very late calculation %lu.%lu.\r\n")
+        //   , timestampdelta.seconds, timestampdelta.nanoseconds);
+        // }
+
+        res = mpu6050_motion_calc(&mpu6050basic_dev, &imudata.mpudata, &imudata.YPR
+          , dt_us);// mpu6050basic_dev.config._internal._samplePeriod);
+
+        // sys_uptime(&uptime);
+        //
+        // time_subtract(&timeRes,   &time2,  &time1);
+        // time_subtract(&uptimeRes, &uptime, &luptime);
+
+        imudata.ts = timestampdelta;
+
+        if (res != 0)
         {
-          imudata.seq++;
-          bus_write(bus_info_p->bus, my_id, &imudata, sizeof(imudata));
+          std_printf(
+            OSTR("Read failed with %d.\r\n"),
+            res
+          );
+          continue;
         }
+        else
+        {
+
+          //if(0==(cnt%10))
+          {
+            imudata.seq++;
+            bus_write(bus_info_p->bus, my_id, &imudata, sizeof(imudata));
+          }
 
 
-        //  if(0==(cnt%10))
-        //   std_printf(OSTR("Read data %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),
-        //   timeRes.seconds,
-        //   timeRes.nanoseconds,
-        //   mpudata.AcX,
-        //   mpudata.AcY,
-        //   mpudata.AcZ,
-        //   /*mpudata.Tmp, */(float)(mpudata.Tmp) * (1.0f / 340.0f) + 36.53f,
-        //   mpudata.GyX,
-        //   mpudata.GyY,
-        //   mpudata.GyZ,
-        //   YPR.x,
-        //   YPR.y,
-        //   YPR.z
-        // );
+          //  if(0==(cnt%10))
+          //   std_printf(OSTR("Read data %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),
+          //   timeRes.seconds,
+          //   timeRes.nanoseconds,
+          //   mpudata.AcX,
+          //   mpudata.AcY,
+          //   mpudata.AcZ,
+          //   /*mpudata.Tmp, */(float)(mpudata.Tmp) * (1.0f / 340.0f) + 36.53f,
+          //   mpudata.GyX,
+          //   mpudata.GyY,
+          //   mpudata.GyZ,
+          //   YPR.x,
+          //   YPR.y,
+          //   YPR.z
+          // );
+        }
       }
 
     }

@@ -107,7 +107,7 @@ int mpu6050_basic_init(
 	self_p->config.bias.GyY = 31;
 	self_p->config.bias.GyZ = 9;
 
-  self_p->config.bias_precalculated = 1; // set it one to retain the biasing, recalculate otherwise
+  self_p->config.bias_precalculated = 0; // set it one to retain the biasing, recalculate otherwise
 
 //  LINE: 762 Bias: A -1832 -510 16370 | G -7 35 5
 //  LINE: 770 Bias: A -1022 -634 16464 | G -4 32 8
@@ -525,8 +525,8 @@ int mpu6050_basic_read_mpu(
     data_p->GyY = ((int16_t)(buf[11] << 8 | buf[12])) - (int16_t)self_p->config.bias.GyY;
     data_p->GyZ = ((int16_t)(buf[13] << 8 | buf[14])) - (int16_t)self_p->config.bias.GyZ;
 
-    #define NOISE_SUPP_ACC_MASK (0b1111111111111100)
-    #define NOISE_SUPP_GYR_MASK (0b1111111111111100)
+    #define NOISE_SUPP_ACC_MASK (0b1111111111111111)
+    #define NOISE_SUPP_GYR_MASK (0b1111111111111111)
     data_p->AcX = ( (data_p->AcX & NOISE_SUPP_ACC_MASK) );
     data_p->AcY = ( (data_p->AcY & NOISE_SUPP_ACC_MASK) );
     data_p->AcZ = ( (data_p->AcZ & NOISE_SUPP_ACC_MASK) );
@@ -576,7 +576,7 @@ int mpu6050_basic_transport_i2c_init(
 
  // must be called every config.sampleRate duration uS
  // If not being called this should msg for timeout warnings
-int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *ypr_p)
+int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *ypr_p, const uint32_t dt_us)
 {
 
   //static Madgwick Madgwick;
@@ -664,7 +664,7 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f) "), __LINE__
   //, correction_Body.x, correction_Body.y, correction_Body.z);
 
-  incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  //dt_us);//self_p->config._internal._samplePeriod);  // create incremental rotation quat
+  incrementalRotation = QuaternionVS(GyroVec, dt_us);//self_p->config._internal._samplePeriod);  // create incremental rotation quat
 
   //incrementalRotation = NormalizeQ(incrementalRotation);
 

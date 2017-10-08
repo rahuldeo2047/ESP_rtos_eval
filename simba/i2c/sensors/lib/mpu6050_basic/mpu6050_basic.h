@@ -134,6 +134,6 @@ int mpu6050_basic_read(
 );
 
 int mpu6050_basic_motion_agzero(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p);
-int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *YPR); // must be called every config.sampleRate duration uS
+int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p, struct Vec3 *YPR, const uint32_t dt_us); // must be called every config.sampleRate duration uS
 
 #endif // __DRIVERS_SENSORS_MPU6050_H__
