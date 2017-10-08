@@ -700,7 +700,8 @@ static int transport_i2c_read(
         // , correction_World.x, correction_World.y, correction_World.z
         // , Accel_World.x, Accel_World.y, Accel_World.z);
 
-        correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
+        //correction_Body = RotateVQ(correction_World, AttitudeEstimateQuat); // rotate correction vector to body frame
+        correction_Body = RotateQV(AttitudeEstimateQuat, correction_World);
         //correction_Body = NormalizeV(correction_Body);
 
         // std_printf(OSTR("Calc Debug: %d: (%f, %f, %f), (%f, %f, %f) "), __LINE__
@@ -722,7 +723,7 @@ static int transport_i2c_read(
 
         AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
 
-        //AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
+        AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
         //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
         //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
 
@@ -795,7 +796,7 @@ static int transport_i2c_read(
 
           sampleCount += 1;
 
-          thrd_sleep_us(self_p->config._internal._samplePeriod);
+          //thrd_sleep_us(self_p->config._internal._samplePeriod);
         }
 
         // if(sampleTempAX > (.75f * sampleCount)){sampleTempAX -= sampleCount;}

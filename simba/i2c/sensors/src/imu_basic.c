@@ -194,7 +194,7 @@ void *imu_thrd(void *arg_p)
         // time_subtract(&timeRes,   &time2,  &time1);
         // time_subtract(&uptimeRes, &uptime, &luptime);
 
-        imudata.ts = timestampdelta;
+        imudata.ts = timestamp;//delta;
 
         if (res != 0)
         {
