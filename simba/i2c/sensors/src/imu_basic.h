@@ -4,7 +4,21 @@
 
 
 #include "simba.h"
+#include "mpu6050_basic.h"
 
+struct imu_thrd_data_t
+{
+  uint32_t seq;
+  struct time_t ts;
+  struct sMPUDATA_t mpudata;
+  struct Vec3 YPR;
+};
+
+inline int imu_thrd_get_channel_id(int *chnid_p)
+{
+   *chnid_p = 0x01;
+   return (0);
+}
 
 void *imu_thrd(void *arg_p);
 

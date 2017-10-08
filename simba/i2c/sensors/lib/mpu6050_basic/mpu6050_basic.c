@@ -660,14 +660,14 @@ int mpu6050_motion_calc(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t
 
   incrementalRotation = QuaternionVS(GyroVec, self_p->config._internal._samplePeriod);  // create incremental rotation quat
 
-  //incrementalRotation = NormalizeQ(incrementalRotation);
+  incrementalRotation = NormalizeQ(incrementalRotation);
 
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f)\r\n"), __LINE__
   //, incrementalRotation.x, incrementalRotation.y, incrementalRotation.z, incrementalRotation.w);
 
   AttitudeEstimateQuat = MulQQ(incrementalRotation, AttitudeEstimateQuat);  // quaternion integration (rotation composting through multiplication)
 
-  //AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
+  AttitudeEstimateQuat = NormalizeQ(AttitudeEstimateQuat);
   //std_printf(OSTR("Calc Debug: %d: (%f, %f, %f, %f) "), __LINE__
   //, AttitudeEstimateQuat.x, AttitudeEstimateQuat.y, AttitudeEstimateQuat.z, AttitudeEstimateQuat.w);
 

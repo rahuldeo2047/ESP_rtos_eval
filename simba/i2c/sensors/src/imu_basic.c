@@ -3,7 +3,10 @@
 //#include "config.h"
 
 #include "mpu6050_basic.h"
+
 #include "imu_basic.h"
+
+#include "common.h"
 
 
 void *imu_thrd(void *arg_p)
@@ -19,6 +22,12 @@ void *imu_thrd(void *arg_p)
   struct time_t time1, timeRes;
   struct time_t time2;
 
+  struct bus_info_t *bus_info_p;
+  bus_info_p = (struct bus_info_t *)arg_p;
+
+  int my_id = -1;
+  imu_thrd_get_channel_id(&my_id);
+
 
   #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
   struct i2c_driver_t i2c;
@@ -32,8 +41,10 @@ void *imu_thrd(void *arg_p)
 
   #endif
 
-  struct sMPUDATA_t mpudata;
-  struct Vec3 YPR;
+  //struct sMPUDATA_t mpudata;
+  //struct Vec3 YPR;
+
+  struct imu_thrd_data_t imudata;
 
   int address;
   int number_of_slaves;
@@ -46,6 +57,8 @@ void *imu_thrd(void *arg_p)
 
   mpu6050basic_dev.config.config = mpu6050basic_config;
 
+
+  imudata.seq = 0;
 
   #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
   std_printf(FSTR("Hardware I2C is being used.\r\n"
@@ -122,12 +135,12 @@ void *imu_thrd(void *arg_p)
     "mpu initialization status: %d.\r\n"), res);
 
 
-    res = mpu6050_basic_start(&mpu6050basic_dev, &mpudata);
+    res = mpu6050_basic_start(&mpu6050basic_dev, &imudata.mpudata);
 
     if (res != 0) {
       std_printf(OSTR("Failed to start the device.\r\n"));
       while(1); // trap or ddestroy the thread
-      //return (res);
+
     }
 
 
@@ -149,7 +162,7 @@ void *imu_thrd(void *arg_p)
       //thrd_sleep_ms(1000);
 
       /* Read temperature and pressure from the BMP280. */
-      res = mpu6050_basic_read(&mpu6050basic_dev, &mpudata);
+      res = mpu6050_basic_read(&mpu6050basic_dev, &imudata.mpudata);
 
 
       if (res != 0)
@@ -161,7 +174,7 @@ void *imu_thrd(void *arg_p)
     }
     else
     {
-      res = mpu6050_motion_calc(&mpu6050basic_dev, &mpudata, &YPR);
+      res = mpu6050_motion_calc(&mpu6050basic_dev, &imudata.mpudata, &imudata.YPR);
 
       luptime = uptime;
       time_get(&time2);
@@ -170,36 +183,46 @@ void *imu_thrd(void *arg_p)
       time_subtract(&timeRes,   &time2,  &time1);
       time_subtract(&uptimeRes, &uptime, &luptime);
 
+      imudata.ts = time2;
+
       if (res != 0)
       {
-        std_printf(OSTR("Read failed with %d.\r\n"),
-        res
-      );
-      continue;
+        std_printf(
+          OSTR("Read failed with %d.\r\n"),
+          res
+        );
+        continue;
+      }
+      else
+      {
+
+        //if(0==(cnt%10))
+        {
+          imudata.seq++;
+          bus_write(bus_info_p->bus, my_id, &imudata, sizeof(imudata));
+        }
+
+
+        //  if(0==(cnt%10))
+        //   std_printf(OSTR("Read data %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),
+        //   timeRes.seconds,
+        //   timeRes.nanoseconds,
+        //   mpudata.AcX,
+        //   mpudata.AcY,
+        //   mpudata.AcZ,
+        //   /*mpudata.Tmp, */(float)(mpudata.Tmp) * (1.0f / 340.0f) + 36.53f,
+        //   mpudata.GyX,
+        //   mpudata.GyY,
+        //   mpudata.GyZ,
+        //   YPR.x,
+        //   YPR.y,
+        //   YPR.z
+        // );
+      }
+
     }
-    else
-    {
 
-      if(0==(cnt%10))
-      std_printf(OSTR("Read data %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),
-      timeRes.seconds,
-      timeRes.nanoseconds,
-      mpudata.AcX,
-      mpudata.AcY,
-      mpudata.AcZ,
-      /*mpudata.Tmp, */(float)(mpudata.Tmp) * (1.0f / 340.0f) + 36.53f,
-      mpudata.GyX,
-      mpudata.GyY,
-      mpudata.GyZ,
-      YPR.x,
-      YPR.y,
-      YPR.z
-    );
   }
-
-}
-
-}
 
 
 }
