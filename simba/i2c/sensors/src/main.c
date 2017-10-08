@@ -92,11 +92,11 @@ int main()
 
     // wifi
     //test_station();
-    BTASSERT(thrd_spawn(comm_thrd,
-      (void*)&bus_info,
-      21,
-      communication_stack,
-      sizeof(communication_stack)) != NULL);
+    // BTASSERT(thrd_spawn(comm_thrd,
+    //   (void*)&bus_info,
+    //   21,
+    //   communication_stack,
+    //   sizeof(communication_stack)) != NULL);
 
 
       while(1)
