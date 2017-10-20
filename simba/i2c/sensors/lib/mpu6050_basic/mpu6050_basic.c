@@ -27,6 +27,7 @@ log_object_print(&(self_p)->log, LOG_ ## level, OSTR(msg), ##__VA_ARGS__)
 #define DEEP_DEBUG 0
 #define deep_debug_log if(DEEP_DEBUG)std_printf
 
+static struct mpu6050_basic_driver_t *g_self_p;
 
 struct mpu6050_basic_transport_protocol_t
 {
@@ -137,9 +138,16 @@ int mpu6050_basic_init(
 , self_p->config._internal.gyroToRad
 );
 
+g_self_p = self_p; // for external libs
 
 return 0;
 
+}
+
+int mpu6050_basic_get_driver(struct mpu6050_basic_driver_t *self_p)
+{
+	self_p = g_self_p; //expected to get this pointer for external libraries
+	return (0);
 }
 
 static int transport_i2c_start(struct mpu6050_basic_driver_t *self_p)
@@ -239,7 +247,7 @@ static int transport_i2c_read(
       transport_p->i2c_p,
       transport_p->i2c_address,
       &address,
-      sizeof(address)
+      sizeof(address) // size ??
     );
 
     //i2c_stop(transport_p->i2c_p);

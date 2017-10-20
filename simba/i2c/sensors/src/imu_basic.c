@@ -211,8 +211,7 @@ void *imu_thrd(void *arg_p)
           {
             imudata.seq++;
             bus_write(bus_info_p->bus, my_id, &imudata, sizeof(imudata));
-          }
-
+          } 
 
           //  if(0==(cnt%10))
           //   std_printf(OSTR("Read data %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),

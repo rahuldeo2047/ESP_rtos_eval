@@ -15,8 +15,12 @@
 #define CONFIG_SYSTEM_TICK_SOFTWARE                           1
 #define CONFIG_SYSTEM_TICK_SOFTWARE_DURATION_MS               (1000/(CONFIG_SYSTEM_TICK_FREQUENCY))
 
+
+// MPU specific
+#define CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA                 1
 // FreeRTOS
 #define configTICK_RATE_HZ			                              ( ( portTickType ) CONFIG_SYSTEM_TICK_FREQUENCY )
+
 
 //#define CONFIG_EEPROM_SOFT_SEMAPHORE                          0
 //#define CONFIG_FLASH_DEVICE_SEMAPHORE                         0

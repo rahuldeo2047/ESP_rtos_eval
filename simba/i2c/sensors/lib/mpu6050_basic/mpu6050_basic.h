@@ -1,4 +1,4 @@
-
+//Author: rahuldeo2047@gmail.com
 
 #ifndef __DRIVERS_SENSORS_MPU6050_H__
 #define __DRIVERS_SENSORS_MPU6050_H__
@@ -6,6 +6,7 @@
 
 #include "simba.h"
 #include "Math3D.h" // Any 3D vector lib
+#include "inv_mpu.h"
 //#include "MadgwickAHRS.h"
 
 #define MPU6050_BASIC_I2C_ADDRESS_0                             (0x68)
@@ -128,6 +129,8 @@ int mpu6050_basic_init(struct mpu6050_basic_driver_t *self_p,
                 struct mpu6050_basic_transport_t *transport_p);
 
 int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p);
+
+int mpu6050_basic_get_driver(struct mpu6050_basic_driver_t *self_p);
 
 int mpu6050_basic_read(
 	struct mpu6050_basic_driver_t *self_p,
