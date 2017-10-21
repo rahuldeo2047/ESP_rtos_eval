@@ -45,6 +45,11 @@ void *imu_thrd(void *arg_p)
 
   #endif
 
+
+  thrd_sleep(4);
+
+
+
   struct imu_thrd_data_t imudata;
 
   int address;
@@ -128,21 +133,22 @@ void *imu_thrd(void *arg_p)
     std_printf(FSTR("\r\n"
     "transport initialization status: %d.\r\n"), res);
 
-
     res = mpu6050_basic_init(&mpu6050basic_dev, &mpu6050basic_transport.base);
 
     std_printf(FSTR("\r\n"
     "mpu initialization status: %d.\r\n"), res);
 
-
     res = mpu6050_basic_start(&mpu6050basic_dev, &imudata.mpudata);
 
     if (res != 0) {
       std_printf(OSTR("Failed to start the device.\r\n"));
-      while(1); // trap or ddestroy the thread
+      while(1); // trap or destroy the thread
 
     }
 
+    std_printf(FSTR("\r\n"
+    "mpu started: %d.\r\n"), res);
+    //while(1);
 
     int cnt = 0;
     while (1)
@@ -158,7 +164,6 @@ void *imu_thrd(void *arg_p)
 
       /* Read accelerometer, temparature and gyro data from mpu6050 . */
       res = mpu6050_basic_read(&mpu6050basic_dev, &imudata.mpudata);
-
 
       if (res != 0)
       {
@@ -211,7 +216,7 @@ void *imu_thrd(void *arg_p)
           {
             imudata.seq++;
             bus_write(bus_info_p->bus, my_id, &imudata, sizeof(imudata));
-          } 
+          }
 
           //  if(0==(cnt%10))
           //   std_printf(OSTR("Read data %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),

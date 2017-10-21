@@ -463,7 +463,7 @@ struct dmp_s {
     unsigned char packet_length;
 };
 
-#ifdef __MOTION_DRIVER_TARGET_RASPBERRY_PI
+#ifdef CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 static struct dmp_s dmp = {
 	/*.tap_cb = */NULL,
 	/*.android_orient_cb = */NULL,
@@ -481,7 +481,7 @@ static struct dmp_s dmp = {
     .fifo_rate = 0,
     .packet_length = 0
 };
-#endif	// __MOTION_DRIVER_TARGET_RASPBERRY_PI
+#endif	// CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 
 /**
  *  @brief  Load the DMP with this image.
@@ -1353,7 +1353,7 @@ int dmp_register_android_orient_cb(void (*func)(unsigned char))
     return 0;
 }
 
-#ifdef __MOTION_DRIVER_TARGET_RASPBERRY_PI
+#ifdef CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 unsigned char __dmp_get_packet_length()
 {
 	return dmp.packet_length;

@@ -5,6 +5,9 @@
 
 #include "kernel/time.h"
 #include "mpu6050_basic.h"
+#include "inv_mpu.h"
+#include "inv_mpu_dmp_motion_driver.h"
+#include "ml_math_func_part.h"
 //#include "Math3D.h"
 
 
@@ -62,12 +65,15 @@ int mpu6050_basic_init(
   struct mpu6050_basic_transport_t *transport_p
 )//uint16_t sampleRate, uint8_t filterLevel, uint8_t gyroRange, uint8_t accelRange)
 {
-
+  int ret;
+  ret = 0;
   #if (CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK > -1)
   log_object_init(&self_p->log, "mpu6050basic", CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK);
   #endif
 
   self_p->transport_p = transport_p;
+
+  // g_self_p = self_p; // for external libs
 
   // self_p->config.config.accelRange	=	0;
   // self_p->config.config.filterLevel	= 6;
@@ -100,6 +106,11 @@ int mpu6050_basic_init(
   self_p->config._internal.gyroToRad = DEG_TO_RAD / (GYRO_BASE * (float)(1 << (3 - self_p->config.config.gyroRange)));	// constant to convert from raw int to float rad/sec
 
   self_p->config.bias.timestamp = 0;
+
+# if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+# else
+
   self_p->config.bias.AcX = -1384;
   self_p->config.bias.AcY = -620;
   self_p->config.bias.AcZ = 16448;
@@ -107,6 +118,8 @@ int mpu6050_basic_init(
   self_p->config.bias.GyX = -7;
   self_p->config.bias.GyY = 31;
   self_p->config.bias.GyZ = 9;
+
+# endif
 
   self_p->config.bias_precalculated = 0; // set it one to retain the biasing, recalculate otherwise
   self_p->config.data_smoothON = 0;
@@ -138,16 +151,16 @@ int mpu6050_basic_init(
 , self_p->config._internal.gyroToRad
 );
 
-g_self_p = self_p; // for external libs
+//g_self_p = self_p; // for external libs
 
-return 0;
+return ret;
 
 }
 
-int mpu6050_basic_get_driver(struct mpu6050_basic_driver_t *self_p)
+struct mpu6050_basic_driver_t * mpu6050_basic_get_driver()//struct mpu6050_basic_driver_t *self_p)
 {
-	self_p = g_self_p; //expected to get this pointer for external libraries
-	return (0);
+  //self_p = g_self_p; //expected to get this pointer for external libraries
+  return (g_self_p);
 }
 
 static int transport_i2c_start(struct mpu6050_basic_driver_t *self_p)
@@ -235,8 +248,6 @@ static int transport_i2c_read(
   ssize_t res;
 
   transport_p = (struct mpu6050_basic_transport_i2c_t *)self_p->transport_p;
-
-
 
   #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
   res = i2c_write(
@@ -362,6 +373,7 @@ static int transport_i2c_read(
         uint8_t buf[24];
         int i;
         uint8_t chip_id;
+        signed char gyro_orientation[9] = {1, 0, 0, 0,1, 0, 0, 0, 1};
 
 
         deep_debug_log(FSTR("\r\n"
@@ -374,6 +386,9 @@ static int transport_i2c_read(
         {
           return (res);
         }
+
+        g_self_p = self_p; // for external libs
+        ASSERTN(g_self_p != NULL, EINVAL);
 
         deep_debug_log(FSTR("\r\n"
         "LINE: %d.\r\n"), __LINE__);
@@ -395,12 +410,115 @@ static int transport_i2c_read(
         }
 
         DLOG(INFO, "Chip id: 0x%02x.\r\n", chip_id);
+        deep_debug_log(FSTR("\r\n"
+        "LINE: %d ID 0x%02x.\r\n"), __LINE__, chip_id);
+
+
+        #if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+        res = mpu_init();
+
+        //while(1);
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed mpu_init %d.\r\n", res);
+          deep_debug_log(FSTR("mpu_init %d %d"), __LINE__, res);
+
+          return (res);
+        }
+
+
+        res = mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL);
+
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed mpu_set_sensors %d.\r\n", res);
+          return (res);
+        }
+
+
+        /* Push both gyro and accel data into the FIFO. */
+        res = mpu_configure_fifo(INV_XYZ_GYRO | INV_XYZ_ACCEL);
+
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed mpu_configure_fifo %d.\r\n", res);
+          return (res);
+        }
+
+
+        res = mpu_set_sample_rate(CONFIG_DEFAULT_MPU_HZ);
+
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed mpu_set_sample_rate %d.\r\n", res);
+          return (res);
+        }
+
+
+        res = dmp_load_motion_driver_firmware();
+
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed dmp_load_motion_driver_firmware %d.\r\n", res);
+          return (res);
+        }
+
+
+        res = dmp_set_orientation(inv_orientation_matrix_to_scalar(gyro_orientation));
+
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed dmp_set_orientation %d.\r\n", res);
+          return (res);
+        }
+
+
+        res = dmp_enable_feature(DMP_FEATURE_6X_LP_QUAT  | DMP_FEATURE_SEND_RAW_ACCEL | DMP_FEATURE_SEND_CAL_GYRO | DMP_FEATURE_GYRO_CAL);
+
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed dmp_enable_feature %d.\r\n", res);
+          return (res);
+        }
+
+
+        res = dmp_set_fifo_rate(CONFIG_DEFAULT_MPU_HZ);
+
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed dmp_set_fifo_rate %d.\r\n", res);
+          return (res);
+        }
+
+
+        res = mpu_set_dmp_state(1);
+
+        if (res != 0)
+        {
+          DLOG(WARNING, "Failed mpu_set_dmp_state %d.\r\n", res);
+          return (res);
+        }
+
+
+        // mpu.initialize();
+        // mpu.dmpInitialize();
+        //
+        // // This need to be setup individually
+        // mpu.setXGyroOffset(220);
+        // mpu.setYGyroOffset(76);
+        // mpu.setZGyroOffset(-85);
+        // mpu.setZAccelOffset(1788);
+        //
+        // mpu.setDMPEnabled(true);
+
+        return res;
+
+        #endif
+
 
         // Set Power mode
         //
-
-        deep_debug_log(FSTR("\r\n"
-        "LINE: %d ID 0x%02x.\r\n"), __LINE__, chip_id);
 
         res = self_p->transport_p->protocol_p->write(
           self_p,
@@ -478,8 +596,6 @@ static int transport_i2c_read(
 
         res = mpu6050_basic_read_mpu(self_p, data_p);
 
-
-
         return (res);
       }
 
@@ -491,14 +607,39 @@ static int transport_i2c_read(
         ASSERTN(self_p != NULL, EINVAL);
 
         #define SMOOTH_SIZE (10)
-        static int smooth_index = 0;
-        static struct sMPUDATA_t mpusmoothdatabuf[SMOOTH_SIZE];
-        struct sMPUDATA_t mpusmoothdata;
-
-        uint8_t buf[15];
         int res;
         int attempt;
 
+#       if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+        res = 0;
+
+        // signed char   gyro_orientation[9] = {1, 0, 0, 0,1, 0, 0, 0, 1};
+        // float         accel_g[3], accel_p[3] = {0}, accel_final[3];
+        // float         q[4], Pitch, Roll,Yaw;
+        //
+        // int16_t       gyro[3], accel[3], accel_ave[3], accel_res[2][3]={0}, disp_show[3], vel_show[3];
+        // long int      vel[2][3]={0}, disp[2][3] = {0};
+        // unsigned long timestamp, time_pre;
+        // short sensors = INV_XYZ_GYRO| INV_XYZ_ACCEL | INV_WXYZ_QUAT;
+        // unsigned char more;
+        // long          quat[4];
+        //
+        // unsigned long time1,time2;
+        //
+        // /* debug */
+        // int16_t       accel_show[3],i;
+        //
+        // accel_g[0] = 0;
+        // accel_g[1] = 0;
+        // accel_g[2] = 0.978833;
+
+#       else
+
+        static int smooth_index = 0;
+        static struct sMPUDATA_t mpusmoothdatabuf[SMOOTH_SIZE];
+        struct sMPUDATA_t mpusmoothdata;
+        uint8_t buf[15];
 
         mpusmoothdata.AcX = 0 ;
         mpusmoothdata.AcY = 0 ;
@@ -526,6 +667,8 @@ static int transport_i2c_read(
 
         if(0x01 == (0x01 & buf[0])) // Data ready //TODO: enum / Macro
         {
+
+          res = 0;
           //struct time_t uptime_p;
           //sys_uptime(&uptime_p);
           //data_p->timestamp = time_micros();//uptime_p.seconds;
@@ -580,8 +723,6 @@ static int transport_i2c_read(
 
           //smooth_index = 0;
 
-
-
           if(1 == self_p->config.data_smoothON)
           {
             data_p->AcX = mpusmoothdata.AcX;
@@ -599,6 +740,8 @@ static int transport_i2c_read(
         {
           // invalid data
         }
+
+#       endif
 
         return (res);
       }
@@ -650,6 +793,57 @@ static int transport_i2c_read(
         //ypr_p->z = RAD_TO_DEG*(ypr_p->z);
 
         //return (0);
+#       if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+        //signed char   gyro_orientation[9] = {1, 0, 0, 0,1, 0, 0, 0, 1};
+        static float         accel_g[3], accel_p[3], accel_final[3];
+        static float         q[4], Pitch, Roll,Yaw;
+
+        static int16_t       gyro[3], accel[3], accel_ave[3], accel_res[2][3], disp_show[3], vel_show[3];
+        static long int      vel[2][3], disp[2][3];
+        static unsigned long timestamp, time_pre;
+        static short sensors = INV_XYZ_GYRO| INV_XYZ_ACCEL | INV_WXYZ_QUAT;
+        static unsigned char more;
+        static long          quat[4];
+
+        static unsigned long time1,time2;
+
+        /* debug */
+        static int16_t       accel_show[3],i;
+
+        // accel_g[0] = 0;
+        // accel_g[1] = 0;
+        // accel_g[2] = 0.978833;
+
+        Pitch = 0;
+        Roll = 0;
+        Yaw = 0;
+
+
+        dmp_read_fifo(gyro, accel, quat, &timestamp, &sensors, &more);
+//        printf("%ld\n",timestamp);
+        if((sensors & INV_WXYZ_QUAT))
+        {
+           /* DMP */
+           q[0]=quat[0] / 1073741824.0f;
+           q[1]=quat[1] / 1073741824.0f;
+           q[2]=quat[2] / 1073741824.0f;
+           q[3]=quat[3] / 1073741824.0f;
+
+           Pitch = asin(-2 * q[1] * q[3] + 2 * q[0]* q[2]) *57.3; // pitch
+           Roll = atan2(2 * q[2] * q[3] + 2 * q[0] * q[1], -2 * q[1] * q[1] - 2 * q[2]* q[2] + 1)*57.3; // roll
+           Yaw = 	atan2(2*(q[1]*q[2] + q[0]*q[3]),q[0]*q[0]+q[1]*q[1]-q[2]*q[2]-q[3]*q[3])*57.3 ;		//
+
+           ypr_p->x = Yaw;//(ypr_p->x);
+           ypr_p->y = Pitch;//(ypr_p->y);
+           ypr_p->z = Roll;//(ypr_p->z);
+
+//			   printf("%3f,%3f,%3f\n",Pitch,Roll, Yaw);
+        }
+
+
+#       else
+
 
         static struct Quat AttitudeEstimateQuat = {1.0f, 0.0f, 0.0f, 0.0f};
 
@@ -743,6 +937,8 @@ static int transport_i2c_read(
         ypr_p->y = RAD_TO_DEG*(ypr_p->y);
         ypr_p->z = RAD_TO_DEG*(ypr_p->z);
 
+#       endif
+
         return (0);
       }
 
@@ -764,12 +960,18 @@ static int transport_i2c_read(
         float sampleTempGY = 0;
         float sampleTempGZ = 0;
 
+#       if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+#       else
+
         self_p->config.bias.AcX = 0;
         self_p->config.bias.AcY = 0;
         self_p->config.bias.AcZ = 0;
         self_p->config.bias.GyX = 0;
         self_p->config.bias.GyY = 0;
         self_p->config.bias.GyZ = 0;
+
+#       endif
 
         while(sampleCount<100) // init time
         {
@@ -794,6 +996,10 @@ static int transport_i2c_read(
             return (res);
           }
 
+#       if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+#       else
+
           sampleTempAX += (float)data_p->AcX;
           sampleTempAY += (float)data_p->AcY;
           sampleTempAZ += (float)data_p->AcZ;
@@ -802,10 +1008,20 @@ static int transport_i2c_read(
           sampleTempGY += (float)data_p->GyY;
           sampleTempGZ += (float)data_p->GyZ;
 
+#         endif
+
           sampleCount += 1;
 
           //thrd_sleep_us(self_p->config._internal._samplePeriod);
         }
+
+        sampleTempAX = sampleTempAX;
+        sampleTempAY = sampleTempAY;
+        sampleTempAZ = sampleTempAZ;
+
+        sampleTempGX = sampleTempGX;
+        sampleTempGY = sampleTempGY;
+        sampleTempGZ = sampleTempGZ;
 
         // if(sampleTempAX > (.75f * sampleCount)){sampleTempAX -= sampleCount;}
         // if(sampleTempAY > (.75f * sampleCount)){sampleTempAY -= sampleCount;}
@@ -815,6 +1031,10 @@ static int transport_i2c_read(
         // if(sampleTempAY < (-.75f * sampleCount)){sampleTempAY += sampleCount;}
         // if(sampleTempAZ < (-.75f * sampleCount)){sampleTempAZ += sampleCount;}
 
+#       if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+#       else
+
         self_p->config.bias.AcX = (int16_t)(sampleTempAX / sampleCount); // average
         self_p->config.bias.AcY = (int16_t)(sampleTempAY / sampleCount);
         self_p->config.bias.AcZ = (int16_t)(sampleTempAZ / sampleCount);
@@ -823,14 +1043,16 @@ static int transport_i2c_read(
         self_p->config.bias.GyY = (int16_t)(sampleTempGY / sampleCount);
         self_p->config.bias.GyZ = (int16_t)(sampleTempGZ / sampleCount);
 
-        std_printf(FSTR("\r\n"
-        "LINE: %d Bias: "
-        "A %d %d %d"
-        " | G %d %d %d"
-        "\r\n"), __LINE__,
-        data_p->AcX, data_p->AcY, data_p->AcZ,
-        data_p->GyX, data_p->GyY, data_p->GyZ
-      );
+#       endif
+
+        // std_printf(FSTR("\r\n"
+        // "LINE: %d Bias: "
+        // "A %d %d %d"
+        // " | G %d %d %d"
+        // "\r\n"), __LINE__,
+        // data_p->AcX, data_p->AcY, data_p->AcZ,
+        // data_p->GyX, data_p->GyY, data_p->GyZ
+      //);
 
       //                  while(1);
 

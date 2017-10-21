@@ -99,7 +99,7 @@ int dmp_enable_gyro_cal(unsigned char enable);
 int dmp_read_fifo(short *gyro, short *accel, long *quat,
     unsigned long *timestamp, short *sensors, unsigned char *more);
 
-#ifdef __MOTION_DRIVER_TARGET_RASPBERRY_PI
+#ifdef CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 unsigned char __dmp_get_packet_length();
 #endif
 

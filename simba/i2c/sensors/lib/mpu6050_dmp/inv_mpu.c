@@ -27,7 +27,7 @@
 #include <math.h>
 #include "inv_mpu.h"
 
-#define MPU6050
+//#define MPU6050
 
 /* The following functions must be defined for this platform:
  * i2c_write_mpu(unsigned char slave_addr, unsigned char reg_addr,
@@ -41,11 +41,21 @@
  * fabsf(float x)
  * min(int a, int b)
  */
+
+#define MPU_LIB_DEEP_DEBUG(fl, fn, ln)
+// std_printf(FSTR("\r\n"
+//                                            " %s :%s :%d : \r\n"),
+//                                              fl    ,
+//                                              fn    ,
+//                                              ln    );
+//                                            thrd_sleep_ms(500);
+
 #ifdef CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 // From
 // st.hw->addr, st.reg->int_enable, 1, &tmp)
 // to
 // dev, addr, buf, size
+
 int i2c_write_mpu(unsigned char address, unsigned char reg, int size, unsigned char *buf_p)
 {
 
@@ -56,15 +66,34 @@ int i2c_write_mpu(unsigned char address, unsigned char reg, int size, unsigned c
 	struct mpu6050_basic_driver_t *self_p;
   struct mpu6050_basic_transport_i2c_t *transport_p;
 
+  MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+
   self_p = NULL;
-  mpu6050_basic_get_driver(self_p);
+  self_p = mpu6050_basic_get_driver();//self_p);
+  ASSERTN(self_p != NULL, EINVAL);
+
+  MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+
   transport_p = (struct mpu6050_basic_transport_i2c_t *)self_p->transport_p;
 
-				for( i = 0; i < size; i++)
-				{
-				     buf_p[i] = reg;//[i]; // it will try to read invalid address at worst case
-				}
-				ret = i2c_write(transport_p->i2c_p, address, (const void*)buf_p, (size_t)size);
+  ASSERTN(transport_p != NULL, EINVAL);
+
+  MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+
+				// for( i = 0; i < size; i++)
+				// {
+				//      buf_p[i] = reg;//[i]; // it will try to read invalid address at worst case
+				// }
+
+        //std_printf(FSTR("\r\n"
+        //" %s :%s :%d : \r\n"),
+        MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+        //thrd_sleep_ms(500);
+        //while(1);
+				ret = i2c_write(transport_p->i2c_p, reg, (const void*)buf_p, (size_t)size);
+
+        MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+        //while(1);
 				return (((int)ret)>1);
 }
 
@@ -78,14 +107,32 @@ int i2c_read_mpu(unsigned char address, unsigned char reg, int size, unsigned ch
   struct mpu6050_basic_transport_i2c_t *transport_p;
 
   self_p = NULL;
-  mpu6050_basic_get_driver(self_p);
+  self_p = mpu6050_basic_get_driver();//self_p);
+  ASSERTN(self_p != NULL, EINVAL);
+
   transport_p = (struct mpu6050_basic_transport_i2c_t *)self_p->transport_p;
 
-				for(i = 0; i < size; i++)
-				{
-				    buf_p[i] = reg;//[i]; // it will try to read invalid address at worst case
-				}
-				ret = i2c_read(transport_p->i2c_p, address, (void*)buf_p, (size_t)size);
+				// for(i = 0; i < size; i++)
+				// {
+				//     buf_p[i] = reg;//[i]; // it will try to read invalid address at worst case
+				// }
+
+        // std_printf(FSTR("\r\n"
+        // " %s :%s :%d : \r\n"),
+        // __FILE__,
+        // __func__,
+        // __LINE__);
+        // //thrd_sleep_ms(100);
+        //while(1);
+        MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+				ret = i2c_read(transport_p->i2c_p, reg, (void*)buf_p, (size_t)size);
+        MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+        // std_printf(FSTR("\r\n"
+        // " %s :%s :%d : \r\n"),
+        // __FILE__,
+        // __func__,
+        // __LINE__);
+        //thrd_sleep_ms(100);
 				return (((int)ret)>1);
 }
 
@@ -108,11 +155,17 @@ void get_ms(unsigned long *count)
 	//count = system_get_time(); // Is it thread safe ?
 }
 
+
+void reg_int_cb(void (*cb)(void), unsigned char port, unsigned char pin)
+{
+
+}
+
 #define labs    abs
 // fabs
 #define min(a,b) (((a) < (b)) ? (a) : (b))
-#define log_i		printf
-#define log_e		printf
+#define log_i		std_printf
+#define log_e		std_printf
 
 //int i2c_write_mpu(unsigned char slave_addr, unsigned char reg_addr, unsigned char length, unsigned char const *data)
 //int i2c_read_mpu(unsigned char slave_addr, unsigned char reg_addr, unsigned char length, unsigned char *data)
@@ -619,7 +672,7 @@ static struct gyro_state_s st = {
 	/*.test =*/ &test
 };
 #endif
-#else	// __MOTION_DRIVER_TARGET_RASPBERRY_PI
+#else	// CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 #if defined MPU6050
 const struct gyro_reg_s reg = {
     .who_am_i       = 0x75,
@@ -779,7 +832,7 @@ static struct gyro_state_s st = {
     .test = &test
 };
 #endif
-#endif	// __MOTION_DRIVER_TARGET_RASPBERRY_PI
+#endif	// CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 
 #define MAX_PACKET_LENGTH (12)
 
@@ -879,11 +932,16 @@ int mpu_init(struct int_param_s *int_param)
 {
     unsigned char data[6], rev;
 
+
+    MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+
     /* Reset device. */
     data[0] = BIT_RESET;
     if (i2c_write_mpu(st.hw->addr, st.reg->pwr_mgmt_1, 1, data))
         return -1;
     delay_ms(100);
+
+    MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
 
     /* Wake up chip. */
     data[0] = 0x00;
@@ -891,11 +949,16 @@ int mpu_init(struct int_param_s *int_param)
         return -1;
 
 #if defined MPU6050
+
+    MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+
     /* Check product revision. */
     if (i2c_read_mpu(st.hw->addr, st.reg->accel_offs, 6, data))
         return -1;
     rev = ((data[5] & 0x01) << 2) | ((data[3] & 0x01) << 1) |
         (data[1] & 0x01);
+
+    MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
 
     if (rev) {
         /* Congrats, these parts are better. */
@@ -910,6 +973,9 @@ int mpu_init(struct int_param_s *int_param)
     } else {
         if (i2c_read_mpu(st.hw->addr, st.reg->prod_id, 1, data))
             return -1;
+
+        MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+
         rev = data[0] & 0x0F;
         if (!rev) {
             log_e("Product ID read as 0 indicates device is either "
@@ -923,8 +989,12 @@ int mpu_init(struct int_param_s *int_param)
     }
 #elif defined MPU6500
 #define MPU6500_MEM_REV_ADDR    (0x17)
+
+    MPU_LIB_DEEP_DEBUG(__FILE__, __func__, __LINE__);
+
     if (mpu_read_mem(MPU6500_MEM_REV_ADDR, 1, &rev))
         return -1;
+
     if (rev == 0x1)
         st.chip_cfg.accel_half = 0;
     else {
@@ -3020,7 +3090,7 @@ lp_int_restore:
     return 0;
 }
 
-#ifdef __MOTION_DRIVER_TARGET_RASPBERRY_PI
+#ifdef CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 // p_ucOrg		origin byte value
 // p_ucNew		new bit value
 // p_iBitBegin	value begin bit (first bit is 0)
@@ -3245,7 +3315,7 @@ int __mpu_set_z_accel_offset( short p_sVal )
 }
 
 
-#endif	// __MOTION_DRIVER_TARGET_RASPBERRY_PI
+#endif	// CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA
 
 /**
  *  @}

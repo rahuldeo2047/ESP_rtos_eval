@@ -38,7 +38,7 @@
 //#
 #include "common.h"
 
-static THRD_STACK(imu_basic_stack, 1024);
+static THRD_STACK(imu_basic_stack, 10*1024);
 static THRD_STACK(communication_stack, 1024);
 
 
@@ -48,8 +48,8 @@ static THRD_STACK(communication_stack, 1024);
 int main()
 {
 
-  sys_start();
 
+  sys_start();
 
   log_object_print(NULL,
     LOG_INFO,
@@ -97,6 +97,7 @@ int main()
     //   21,
     //   communication_stack,
     //   sizeof(communication_stack)) != NULL);
+    //thrd_sleep(4000);
 
 
       while(1)
@@ -112,6 +113,19 @@ int main()
             imudata.seq,
             imudata.ts.seconds,
             imudata.ts.nanoseconds,
+
+#           if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+            imudata.mpudata.accel[0],
+            imudata.mpudata.accel[1],
+            imudata.mpudata.accel[2],
+            0,
+            imudata.mpudata.gyro[0],
+            imudata.mpudata.gyro[1],
+            imudata.mpudata.gyro[2],
+
+#           else
+
             imudata.mpudata.AcX,
             imudata.mpudata.AcY,
             imudata.mpudata.AcZ,
@@ -119,6 +133,9 @@ int main()
             imudata.mpudata.GyX,
             imudata.mpudata.GyY,
             imudata.mpudata.GyZ,
+
+#           endif
+
             imudata.YPR.x,
             imudata.YPR.y,
             imudata.YPR.z

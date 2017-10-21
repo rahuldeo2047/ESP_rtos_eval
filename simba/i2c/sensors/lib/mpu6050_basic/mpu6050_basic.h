@@ -48,8 +48,20 @@ struct sMPUDATA_t
 
   uint32_t timestamp;
   /*int16_t*/
+
+  #if (CONFIG_MPU6050_DMP_ENABLE > 0)
+
+  int16_t       gyro[3];
+  int16_t       accel[3];
+  long          quat[4];
+  short         sensors;
+  unsigned char more;
+
+  #else
+
   int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
 
+  #endif
 };
 
 struct mpu6050_basic_config_internal
@@ -130,7 +142,8 @@ int mpu6050_basic_init(struct mpu6050_basic_driver_t *self_p,
 
 int mpu6050_basic_start(struct mpu6050_basic_driver_t *self_p, struct sMPUDATA_t *data_p);
 
-int mpu6050_basic_get_driver(struct mpu6050_basic_driver_t *self_p);
+struct mpu6050_basic_driver_t * mpu6050_basic_get_driver();
+//int mpu6050_basic_get_driver(struct mpu6050_basic_driver_t *self_p);
 
 int mpu6050_basic_read(
 	struct mpu6050_basic_driver_t *self_p,

@@ -6,8 +6,6 @@
 #define CONFIG_START_CONSOLE_UART_BAUDRATE                    74800
 #define CONFIG_EXTI                                           1
 
-#define CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK                   1
-#define CONFIG_MPU6050_BASIC_USE_HARD_I2C                     1 //(-1)
 
 #define CONFIG_MODULE_INIT_PWM_SOFT                           0
 
@@ -18,6 +16,16 @@
 
 // MPU specific
 #define CONFIG_MOTION_DRIVER_TARGET_ESP_SIMBA                 1
+#define MPU6050
+//#define EMPL
+//#define USE_DMP
+
+#define CONFIG_MPU6050_DMP_ENABLE                             1
+
+#define CONFIG_DEFAULT_MPU_HZ                                 (20)
+#define CONFIG_MPU6050_BASIC_DEBUG_LOG_MASK                   1
+#define CONFIG_MPU6050_BASIC_USE_HARD_I2C                     1 //(-1)
+
 // FreeRTOS
 #define configTICK_RATE_HZ			                              ( ( portTickType ) CONFIG_SYSTEM_TICK_FREQUENCY )
 
