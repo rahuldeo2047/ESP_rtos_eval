@@ -77,7 +77,7 @@ void *imu_thrd(void *arg_p)
   //i2c_init(&i2c, &i2c_0_dev, I2C_BAUDRATE_100KBPS, -1);
   #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
 
-  i2c_init(&i2c, &i2c_0_dev, I2C_BAUDRATE_400KBPS, -1);
+  i2c_init(&i2c, &i2c_2_dev, I2C_BAUDRATE_400KBPS, -1);
   i2c_start(&i2c);
 
   #else
