@@ -49,11 +49,14 @@ void *comm_thrd(void *arg_p)
   struct inet_addr_t local_addr, remote_addr;
   struct imu_thrd_data_t imudata;
 
+  struct inet_if_ip_info_t ip_info;
+
   struct bus_info_t * bus_info = (struct bus_info_t *)arg_p;
 
   memset((void*)&imudata, 0, sizeof(imudata));
 
   start_wifi_station();
+  res = esp_wifi_station_get_ip_info(&ip_info);
 
   res = socket_module_init();
   res = res;
@@ -61,7 +64,8 @@ void *comm_thrd(void *arg_p)
   // get these from wificonfig.h
 
   /* Set the local and remote addresses. */
-  inet_aton("192.168.1.103", &local_addr.ip);
+  local_addr.ip = ip_info.address;
+  //inet_aton("192.168.1.103", &local_addr.ip);
   local_addr.port = 6000;
   inet_aton("192.168.1.4", &remote_addr.ip);
   remote_addr.port = 5000;
