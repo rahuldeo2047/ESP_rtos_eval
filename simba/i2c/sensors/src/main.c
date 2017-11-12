@@ -62,11 +62,11 @@ int main()
     struct bus_info_t bus_info;
 
     struct bus_t bus;
-    struct bus_listener_t bus_listener;
+    struct bus_listener_t bus_listener[2]; // number of listeners wifi and print
     struct queue_t queue;
 
     bus_info.bus = &bus;
-    bus_info.bus_listener = &bus_listener;
+    //bus_info.bus_listener = &bus_listener;
     bus_info.queue = &queue;
 
     struct imu_thrd_data_t imudata;
@@ -77,10 +77,20 @@ int main()
 
     BTASSERT(queue_init(bus_info.queue, &imudataBUF[0], sizeof(imudataBUF)) == 0);
     BTASSERT(bus_init(bus_info.bus) == 0);
-    BTASSERT(bus_listener_init(bus_info.bus_listener, chanid_imu, bus_info.queue) == 0);
+    BTASSERT(bus_listener_init(&bus_listener[0], chanid_imu, bus_info.queue) == 0);
 
     /* Attach-detach a channel. */
-    BTASSERT(bus_attach(bus_info.bus, bus_info.bus_listener) == 0);
+    BTASSERT(bus_attach(bus_info.bus, &bus_listener[0]) == 0);
+
+    int chanid_wifi= -1;
+    comm_thrd_get_channel_id( &chanid_wifi );
+
+    //BTASSERT(queue_init(bus_info.queue, &imudataBUF[0], sizeof(imudataBUF)) == 0);
+    //BTASSERT(bus_init(bus_info.bus) == 0);
+    BTASSERT(bus_listener_init(&bus_listener[1], chanid_wifi, bus_info.queue) == 0);
+
+    /* Attach-detach a channel. */
+    BTASSERT(bus_attach(bus_info.bus, &bus_listener[1]) == 0);
 
     // thrd_spawn .... mpu task
     BTASSERT(thrd_spawn(imu_thrd,
@@ -89,14 +99,13 @@ int main()
       imu_basic_stack,
       sizeof(imu_basic_stack)) != NULL);
 
-
     // wifi
     //test_station();
-    // BTASSERT(thrd_spawn(comm_thrd,
-    //   (void*)&bus_info,
-    //   21,
-    //   communication_stack,
-    //   sizeof(communication_stack)) != NULL);
+    BTASSERT(thrd_spawn(comm_thrd,
+      (void*)&bus_info,
+      21,
+      communication_stack,
+      sizeof(communication_stack)) != NULL);
 
 
       while(1)

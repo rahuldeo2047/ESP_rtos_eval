@@ -10,7 +10,7 @@
 struct bus_info_t
 {
    struct bus_t *bus;
-   struct bus_listener_t *bus_listener;
+   //struct bus_listener_t *bus_listener;
    struct queue_t *queue;
 };
 
