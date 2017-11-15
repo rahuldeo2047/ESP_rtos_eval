@@ -39,7 +39,7 @@
 #include "common.h"
 
 static THRD_STACK(imu_basic_stack, 1024);
-static THRD_STACK(communication_stack, 1024);
+static THRD_STACK(communication_stack, 10*1024);
 
 
 // Wifi test
