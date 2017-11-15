@@ -144,10 +144,10 @@ void *imu_thrd(void *arg_p)
     }
 
 
-    int cnt = 0;
+    int seq = 0;
     while (1)
     {
-      cnt++;
+
       //time_get(&time1);
       //sys_uptime(&uptime);
 
@@ -175,6 +175,12 @@ void *imu_thrd(void *arg_p)
       dt_us = timestampdelta.nanoseconds/1000UL; // corrections
       //
       dt_us = dt_us;
+
+      seq++;
+
+      imudata.seq = seq;
+      imudata.ts = timestamp;
+      //imudata.
 
       // TODO: Time it for the sample time
       //if(dt_us >= mpu6050basic_dev.config._internal._samplePeriod/2)

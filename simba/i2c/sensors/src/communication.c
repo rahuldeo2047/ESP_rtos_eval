@@ -9,6 +9,8 @@
 #include "imu_basic.h"
 #include "mpu6050_basic.h"
 
+#include "/home/rahuldeo/ATOM/ATOM_DRONE/ESP8266_D1/src/data2.h"
+
 
 static int start_wifi_station(void)
 {
@@ -48,6 +50,7 @@ void *comm_thrd(void *arg_p)
   struct socket_t tcp;
   struct inet_addr_t local_addr, remote_addr;
   struct imu_thrd_data_t imudata;
+  debug_data debug_data;
 
   struct inet_if_ip_info_t ip_info;
 
@@ -66,24 +69,35 @@ void *comm_thrd(void *arg_p)
   /* Set the local and remote addresses. */
   local_addr.ip = ip_info.address;
   //inet_aton("192.168.1.103", &local_addr.ip);
-  local_addr.port = 6000;
+  local_addr.port = 10000;
   inet_aton("192.168.1.4", &remote_addr.ip);
-  remote_addr.port = 5000;
+  remote_addr.port = 11511;
 
   /* Initialize the socket and connect to the server. */
-  socket_open_tcp(&tcp);
-  socket_bind(&tcp, &local_addr);
-  socket_connect(&tcp, &remote_addr);
-
+  res = socket_open_tcp(&tcp);
+  res = socket_bind(&tcp, &local_addr);
+  res = socket_connect(&tcp, &remote_addr);
+  if(0!=res)
+  {
+    // TODO: log PROPERLY
+    std_printf(OSTR("--------- socket connect error ---------"));
+    while(true);
+  }
   // tx rx form bus and ros
+
 
   while(true)
   {
     if(queue_read((bus_info->queue), &imudata, sizeof(imudata)) > 0)// sizeof(imudata))
     {
+      debug_data.mpuRAW = imudata.mpudata;
       /* Send the data. */
-      socket_write(&tcp, &imudata, sizeof(imudata));
-      memset((void*)&imudata, 0, sizeof(imudata));
+      res = socket_write(&tcp, &debug_data, sizeof(debug_data));
+      if(0>res)
+      {
+        // error
+      }
+      memset((void*)&debug_data, 0, sizeof(debug_data));
 
     }
   }

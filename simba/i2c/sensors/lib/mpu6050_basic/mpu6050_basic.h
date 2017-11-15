@@ -8,6 +8,8 @@
 #include "Math3D.h" // Any 3D vector lib
 //#include "MadgwickAHRS.h"
 
+#include "/home/rahuldeo/ATOM/ATOM_DRONE/ESP8266_D1/src/data2.h"
+
 #define MPU6050_BASIC_I2C_ADDRESS_0                             (0x68)
 #define MPU6050_BASIC_I2C_ADDRESS_1                             (0x69)
 #define MPU6050_BASIC_I2C_ADDRESS_AUTOMATIC                     (0xff)
@@ -42,14 +44,14 @@ struct mpu6050_basic_setting
     int8_t errmpu;
 };
 
-struct sMPUDATA_t
-{
-
-  uint32_t timestamp;
-  /*int16_t*/
-  int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
-
-};
+// struct sMPUDATA_t
+// {
+//
+//   uint32_t timestamp;
+//   /*int16_t*/
+//   int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+//
+//};
 
 struct mpu6050_basic_config_internal
 {

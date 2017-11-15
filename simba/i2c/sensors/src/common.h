@@ -6,6 +6,7 @@
 
 #include "imu_basic.h"
 #include "mpu6050_basic.h"
+#include "/home/rahuldeo/ATOM/ATOM_DRONE/ESP8266_D1/src/data2.h"
 
 struct bus_info_t
 {
