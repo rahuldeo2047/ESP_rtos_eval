@@ -7,7 +7,7 @@
 
 #include <time.h>
 
-#define DS_DEEP_DEBUG 1
+#define DS_DEEP_DEBUG 0
 #define ds_deep_debug_log if(DS_DEEP_DEBUG)std_printf
 #define DS_DEBUG ds_deep_debug_log(OSTR("DEBUG %s(): %d\r\n"),__func__, __LINE__);
 #define DS_DEBUG_VAL(x) ds_deep_debug_log(OSTR("DEBUG %s(): %d %f\r\n"),__func__, __LINE__, x);
@@ -44,7 +44,7 @@ static int distancesensor_get_echo_status()
 static int distancesensor_get_echo_time(int32_t *ts)
 {
 
-  #define DISTANCESENSOR_PING_MAX_TIME (100000) // uS  50uS == 1 cm
+  #define DISTANCESENSOR_PING_MAX_TIME (9500) // uS  50uS == 1 cm // 9500 is trial and error
 
   static bool distancesensor_trigger_status, distancesensor_echo_status;
 
@@ -165,10 +165,11 @@ static int distancesensor_get_echo_time(int32_t *ts)
   return (0);
 }
 
+// Not handled for very near objects
 static int distancesensor_get_echo_distance_in_cm(float *d)
 {
 
-  #define DISTANCESENSOR_PING_CONVERTION_TO_CM (50.0f) // uS US_ROUNDTRIP_CM 50
+  #define DISTANCESENSOR_PING_CONVERTION_TO_CM (58.0f) // uS US_ROUNDTRIP_CM 50
 
   int res;
   int32_t ts;
@@ -180,8 +181,10 @@ static int distancesensor_get_echo_distance_in_cm(float *d)
 
   *d = 0;
 
-  if(0==res)
+  if(0==res && ts > 0)
     *d = (float)ts / DISTANCESENSOR_PING_CONVERTION_TO_CM;
+  else
+    *d = 200.0f;
 
 
   return (0);
@@ -195,7 +198,9 @@ void *distancesensor_thrd(void *arg_p)
 
   int res;
   struct bus_info_t * bus_info;
-  float disctance_in_cm;
+  float disctance_in_cm, average_disctance_in_cm, alpha;
+  alpha = 0.8f;
+  average_disctance_in_cm = 100.0f;
 
   bus_info = (struct bus_info_t *)arg_p;
   bus_info = bus_info;
@@ -210,10 +215,10 @@ void *distancesensor_thrd(void *arg_p)
 
     distancesensor_get_echo_distance_in_cm(&disctance_in_cm);
 
-    thrd_sleep_ms(1000);
+    average_disctance_in_cm = average_disctance_in_cm * alpha + (1-alpha) * disctance_in_cm;
+    std_printf(OSTR("Read distance data %f %f cms\r\n"), disctance_in_cm, average_disctance_in_cm);
 
-    std_printf(OSTR("Read distance data %f \r\n"), disctance_in_cm);
-
+    thrd_sleep_ms(10);
     //if(queue_write((bus_info->queue), &imudata, sizeof(imudata)) > 0)// sizeof(imudata))
     {
 
