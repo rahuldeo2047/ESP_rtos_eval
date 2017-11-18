@@ -34,12 +34,14 @@
 
 #include "imu_basic.h"
 #include "communication.h"
+#include "distancesensor.h"
 //#include "mpu6050_basic.h"
 //#
 #include "common.h"
 
 static THRD_STACK(imu_basic_stack, 1024);
-static THRD_STACK(communication_stack, 10*1024);
+static THRD_STACK(communication_stack, 2*1024);
+static THRD_STACK(distancesensor_stack, 1024);
 
 
 // Wifi test
@@ -70,7 +72,7 @@ int main()
     bus_info.queue = &queue;
 
     struct imu_thrd_data_t imudata;
-    struct imu_thrd_data_t imudataBUF[10];
+    struct imu_thrd_data_t imudataBUF[50];
 
     int chanid_imu = -1;
     imu_thrd_get_channel_id( &chanid_imu );
@@ -93,29 +95,39 @@ int main()
     BTASSERT(bus_attach(bus_info.bus, &bus_listener[1]) == 0);
 
     // thrd_spawn .... mpu task
-    BTASSERT(thrd_spawn(imu_thrd,
-      (void*)&bus_info,
-      20,
-      imu_basic_stack,
-      sizeof(imu_basic_stack)) != NULL);
+    // BTASSERT(thrd_spawn(imu_thrd,
+    //   (void*)&bus_info,
+    //   20,
+    //   imu_basic_stack,
+    //   sizeof(imu_basic_stack)) != NULL);
+    //
+    // // wifi
+    // //test_station();
+    // BTASSERT(thrd_spawn(comm_thrd,
+    //   (void*)&bus_info,
+    //   21,
+    //   communication_stack,
+    //   sizeof(communication_stack)) != NULL);
 
-    // wifi
-    //test_station();
-    BTASSERT(thrd_spawn(comm_thrd,
-      (void*)&bus_info,
-      21,
-      communication_stack,
-      sizeof(communication_stack)) != NULL);
+
+    BTASSERT(thrd_spawn(distancesensor_thrd,
+        (void*)&bus_info,
+        22,
+        distancesensor_stack,
+        sizeof(distancesensor_stack)) != NULL);
 
 
+      int32_t count;
+      count = 0;
       while(1)
       {
         // read bus
-
+        thrd_yield();
         if(queue_read(&queue, &imudata, sizeof(imudata)) > 0)// sizeof(imudata))
         {
+          count++;
           //imudata = imudataBUF[0]; // COULD BE THE LAST ONE
-          if (0 == imudata.seq%100) // ignore few data and print slow
+          if (0 == count%100) // ignore few data and print slow
           {
             std_printf(OSTR("Read data %lu: %lu.%lu A[%d %d %d], Tmp:%f, G[%d %d %d], YPR[%f %f %f] \r\n"),
             imudata.seq,

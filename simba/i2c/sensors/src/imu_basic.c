@@ -12,6 +12,8 @@
 void *imu_thrd(void *arg_p)
 {
 
+  thrd_set_name(imu_thrd_get_thrd_name());
+
   struct mpu6050_basic_driver_t mpu6050basic_dev;
   struct mpu6050_basic_transport_i2c_t mpu6050basic_transport;
   struct mpu6050_basic_config_initial mpu6050basic_config;
@@ -60,6 +62,9 @@ void *imu_thrd(void *arg_p)
 
   imudata.seq = 0;
 
+  //timer_module_init();
+  //timer_init(struct timer_t *self_p, const struct time_t *timeout_p, timer_callback_t callback, void *arg_p, int flags)
+ 
   #if (CONFIG_MPU6050_BASIC_USE_HARD_I2C>-1)
   std_printf(FSTR("Hardware I2C is being used.\r\n"
   "\r\n"));
@@ -153,7 +158,7 @@ void *imu_thrd(void *arg_p)
 
       // thread sleep is not accurate
       //thrd_sleep_us(1);//mpu6050basic_dev.config._internal._samplePeriod);
-      //thrd_sleep_ms(1000);
+      thrd_sleep_ms(5);
       //time_busy_wait_us(mpu6050basic_dev.config._internal._samplePeriod);
 
       /* Read accelerometer, temparature and gyro data from mpu6050 . */

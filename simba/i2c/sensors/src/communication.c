@@ -44,13 +44,16 @@ static int start_wifi_station(void)
 void *comm_thrd(void *arg_p)
 {
 
+  thrd_set_name(comm_thrd_get_thrd_name());
+
   // SETUP
 
-  int res ;
+  int res, lastsocketconnstatus ;
   struct socket_t tcp;
   struct inet_addr_t local_addr, remote_addr;
   struct imu_thrd_data_t imudata;
   debug_data debug_data;
+  sGENERICSETPOINTS_t setpoints;
 
   struct inet_if_ip_info_t ip_info;
 
@@ -59,6 +62,7 @@ void *comm_thrd(void *arg_p)
   memset((void*)&imudata, 0, sizeof(imudata));
 
   start_wifi_station();
+  
   res = esp_wifi_station_get_ip_info(&ip_info);
 
   res = socket_module_init();
@@ -76,8 +80,8 @@ void *comm_thrd(void *arg_p)
   /* Initialize the socket and connect to the server. */
   res = socket_open_tcp(&tcp);
   res = socket_bind(&tcp, &local_addr);
-  res = socket_connect(&tcp, &remote_addr);
-  if(0!=res)
+  lastsocketconnstatus = socket_connect(&tcp, &remote_addr); // need to be inside the while loop
+  if(0!=lastsocketconnstatus)
   {
     // TODO: log PROPERLY
     std_printf(OSTR("--------- socket connect error ---------"));
@@ -88,16 +92,35 @@ void *comm_thrd(void *arg_p)
 
   while(true)
   {
+    //thrd_sleep_ms(100);
+    res = socket_connect(&tcp, &remote_addr); // need to be inside the while loop
+    if(0!=res && lastsocketconnstatus != res)
+    {
+      // TODO: log PROPERLY
+      std_printf(OSTR("--------- socket connect error ---------\r\n"));
+      //while(true);
+      thrd_sleep_ms(500);
+      continue;
+    }
+
     if(queue_read((bus_info->queue), &imudata, sizeof(imudata)) > 0)// sizeof(imudata))
     {
       debug_data.mpuRAW = imudata.mpudata;
       /* Send the data. */
       res = socket_write(&tcp, &debug_data, sizeof(debug_data));
+      memset((void*)&debug_data, 0, sizeof(debug_data));
+
+      //ssize_t len;
+      //len = socket_size(&tcp);
+
+      //if(len >= sizeof(setpoints))
+      //  res = socket_read(&tcp, &setpoints, sizeof(setpoints));
+
       if(0>res)
       {
         // error
       }
-      memset((void*)&debug_data, 0, sizeof(debug_data));
+
 
     }
   }

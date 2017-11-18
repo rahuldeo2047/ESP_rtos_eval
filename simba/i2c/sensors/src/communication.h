@@ -2,6 +2,11 @@
 #ifndef __COMMUNICATION_H__
 #define __COMMUNICATION_H__
 
+#define COMM_THRD_NAME ("comm_thrd")
+inline char * comm_thrd_get_thrd_name()
+{
+  return (COMM_THRD_NAME);
+}
 
 inline int comm_thrd_get_channel_id(int *chnid_p)
 {
